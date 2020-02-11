@@ -1,3 +1,5 @@
 ## Input reconstruction attacks 
 
-1. Using Auto Encoder
+- Using Auto Encoder
+
+- Loss between autoencoder output and original image
