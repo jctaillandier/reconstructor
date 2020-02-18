@@ -1,9 +1,9 @@
 data_loading:
         data_path: 
-            value: "../GeneralDatasets/sanitizer_output/german_credit/full_A=1-No=1--E=10.csv" # "../GeneralDatasets/Csv/Adult_NoCat"
+            value: "./data/full_a=0_E=19.csv"
             desc: "Where to get the input dataset"
         label_path:
-            value: "../GeneralDatasets/sanitizer_output/german_credit/labels_A=1-No=1--E=10.csv"
+            value: "./data/full_original.csv"
             desc: "Where labels are. Line by line equivalent to data"
 model_params:
         batchSize: 
@@ -16,12 +16,12 @@ model_params:
             value: 0.85
             desc: "Percentage of total dataset used as training set. Rest goes into test set"
         learning_rate:
-            value: 0.001
+            value: 0.006
             desc: "Learning rate `lr` for model training"
         num_epochs:
-            value: 300
+            value: 25
             desc: "Number of epochs to train the model."
         weight_decay:
-            value: 0.1
+            value: 0
             desc: "Number of epochs to train the model."
         
