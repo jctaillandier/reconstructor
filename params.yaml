@@ -19,11 +19,7 @@ model_params:
             value: 0.004
             desc: "Learning rate `lr` for model training"
         num_epochs:
-<<<<<<< HEAD
-            value: 50
-=======
-            value: 100
->>>>>>> b83df3eb675a5b86dd67d8259cbb42bdb1155007
+            value: 5
             desc: "Number of epochs to train the model."
         weight_decay:
             value: 0

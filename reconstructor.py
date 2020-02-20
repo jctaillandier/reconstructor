@@ -101,7 +101,7 @@ class PreProcessing:
         import_path = self.params['data_loading']['data_path']['value']
         label_path = self.params['data_loading']['label_path']['value']
 
-        batchSize = self.params['model_params']['batchSize']['value']        
+        self.batchSize = self.params['model_params']['batchSize']['value']        
         test_batch_size = self.params['model_params']['test_batch_size']['value']        
         percent_train_set = self.params['model_params']['percent_train_set']['value']
 
@@ -136,10 +136,10 @@ class PreProcessing:
                 raise ValueError("The labels csv and data post-encoding don't have the same shape.")
                 
             df_labels.to_csv(f"{label_path[:-4]}_NoCat.csv", index=False)
-            self.dataloader = My_dataLoader(batchSize, f"{import_path[:-4]}_NoCat.csv", f"{label_path[:-4]}_NoCat.csv", n_test, "income", test_batch_size)
+            self.dataloader = My_dataLoader(self.batchSize, f"{import_path[:-4]}_NoCat.csv", f"{label_path[:-4]}_NoCat.csv", n_test, "income", test_batch_size)
         
         else: # no categorical vars found
-            self.dataloader = My_dataLoader(batchSize, import_path, n_test, "income", test_batch_size)
+            self.dataloader = My_dataLoader(self.batchSize, import_path, n_test, "income", test_batch_size)
 
 # Box
 
@@ -149,19 +149,19 @@ class Autoencoder(nn.Module):
         self.encoder = nn.Sequential(
             nn.Linear(in_dim, 16),
             nn.Dropout(0.5),
-            nn.Sigmoid(),
+            nn.ReLU(),
             nn.Linear(16, 8),
             nn.Dropout(0.5),
-            nn.Sigmoid(), nn.Linear(8, 4))#, nn.ReLU(True), nn.Linear(4, 4))
+            nn.ReLU(), nn.Linear(8, 4))#, nn.ReLU(True), nn.Linear(4, 4))
         self.decoder = nn.Sequential(
             nn.Dropout(0.5),
             nn.Linear(4, 16),
-            nn.Sigmoid(),
+            nn.ReLU(),
             nn.Dropout(0.5),
 #             nn.Linear(10, 16),
 #             nn.ReLU(True),
             nn.Linear(16, 24),
-            nn.Sigmoid(), nn.Linear(24, out_dim))
+            nn.ReLU(), nn.Linear(24, out_dim))
 
     def forward(self, x):
         x = self.encoder(x)
@@ -253,8 +253,7 @@ def train_model(experiment_x: PreProcessing, model_type:str='autoencoder'):
         print(f"Epoch {epoch} running...")
 
         batch_ave_tr_loss = train(model,experiment_x.dataloader.train_loader, optimizer, train_loss)
-        ave_train_loss.append(batch_ave_tr_loss)
-
+        ave_train_loss.append(batch_ave_tr_loss/experiment_x.batchSize)
         last = False
         if epoch+1 == num_epochs: # then save the test batch input and output for metrics
             last = True
@@ -292,7 +291,6 @@ plt.xlabel("Epochs")
 plt.ylabel("L1 Loss")
 plt.title("Test Loss")
 plt.savefig(f"./experiments/{str.replace(time.ctime(), ' ', '_')}-{a}_test-loss.png")
-plt.show()
 
 
 plt.plot(np.arange(1,num_epochs+1), np.array(ave_train_loss))
@@ -300,5 +298,4 @@ plt.xlabel("Epochs")
 plt.ylabel("L1 Loss")
 plt.title("Train Loss - average per epoch")
 plt.savefig(f"./experiments/{str.replace(time.ctime(), ' ', '_')}-{a}_train-loss.png")
-plt.show()
 
