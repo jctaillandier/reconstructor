@@ -49,7 +49,10 @@ if args[1]:
 else:
     print("No name given to experiment.")
     exp_name = "no-name"
+
 path_to_exp=f'./experiments/{exp_name}/'
+if os.path.isdir(path_to_exp):
+    raise FileExistsError("Experiment with name: \'{}\' already exists. Please choose a different name.".format(exp_name))
 os.mkdir(path_to_exp)
 
 # Data import & Pre-processing
@@ -163,16 +166,16 @@ class Autoencoder(nn.Module):
         super(Autoencoder, self).__init__()
         self.encoder = nn.Sequential(
             nn.Linear(in_dim, 16),
-            nn.Dropout(0.25),
+            # batchnorm,
             nn.LeakyReLU(),
             nn.Linear(16, 8),
-            nn.Dropout(0.25),
+            # batchnorm,
             nn.LeakyReLU(), nn.Linear(8, 4))#, nn.ReLU(True), nn.Linear(4, 4))
         self.decoder = nn.Sequential(
-            nn.Dropout(0.25),
+            # batchnorm,
             nn.Linear(4, 16),
             nn.LeakyReLU(),
-            nn.Dropout(0.25),
+            # batchnorm,
 #             nn.Linear(10, 16),
 #             nn.ReLU(True),
             nn.Linear(16, 24),
