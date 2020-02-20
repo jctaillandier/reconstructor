@@ -78,7 +78,7 @@ class My_dataLoader:
         if test_batch_size == 'full':
             test_batch_size = len(self.test_dataset)
             
-        self.test_loader = torch.utils.data.DataLoader.DataLoader(
+        self.test_loader = torch.utils.data.DataLoader(
             self.test_dataset,
             batch_size=test_batch_size,
             num_workers=1,
