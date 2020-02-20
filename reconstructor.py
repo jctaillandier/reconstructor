@@ -37,6 +37,21 @@ with open('./data/full_original.csv', 'r') as r:
         header = next(read)
 
 
+import sys
+args = sys.argv[1:]
+
+if args[0][-5:] != '.yaml':
+    raise ValueError("first argument needs to be the parmeters file in yaml format")
+params_file = args[0]
+
+if args[1]:
+    exp_name = args[1]
+else:
+    print("No name given to experiment.")
+    exp_name = "no-name"
+path_to_exp=f'./experiments/{exp_name}/'
+os.mkdir(path_to_exp)
+
 # Data import & Pre-processing
   
 class My_dataLoader:
@@ -148,20 +163,20 @@ class Autoencoder(nn.Module):
         super(Autoencoder, self).__init__()
         self.encoder = nn.Sequential(
             nn.Linear(in_dim, 16),
-            nn.Dropout(0.5),
-            nn.ReLU(),
+            nn.Dropout(0.25),
+            nn.LeakyReLU(),
             nn.Linear(16, 8),
-            nn.Dropout(0.5),
-            nn.ReLU(), nn.Linear(8, 4))#, nn.ReLU(True), nn.Linear(4, 4))
+            nn.Dropout(0.25),
+            nn.LeakyReLU(), nn.Linear(8, 4))#, nn.ReLU(True), nn.Linear(4, 4))
         self.decoder = nn.Sequential(
-            nn.Dropout(0.5),
+            nn.Dropout(0.25),
             nn.Linear(4, 16),
-            nn.ReLU(),
-            nn.Dropout(0.5),
+            nn.LeakyReLU(),
+            nn.Dropout(0.25),
 #             nn.Linear(10, 16),
 #             nn.ReLU(True),
             nn.Linear(16, 24),
-            nn.ReLU(), nn.Linear(24, out_dim))
+            nn.LeakyReLU(), nn.Linear(24, out_dim))
 
     def forward(self, x):
         x = self.encoder(x)
@@ -202,8 +217,7 @@ def test(model, test_loader, test_loss_fn, last_epoch=False):
             
             if last_epoch == True:
                 data = inputs.tolist()
-                with open(f"./experiments/{str.replace(time.ctime()[4:-8], ' ', '_')}-original_testset.csv", 'w', newline="") as f:
-                    import pdb; pdb.set_trace()
+                with open(path_to_exp+f"{str.replace(time.ctime()[4:-8], ' ', '_')}-original_testset.csv", 'w', newline="") as f:
                     writer = csv.writer(f)
                     writer.writerow(header)
                     writer.writerows(data)
@@ -212,7 +226,7 @@ def test(model, test_loader, test_loss_fn, last_epoch=False):
 
             if last_epoch == True:
                 data = output.tolist()
-                with open(f"./experiments/{str.replace(time.ctime()[4:-8], ' ', '_')}-generated_testset.csv", 'w', newline="") as f:
+                with open(path_to_exp+f"{str.replace(time.ctime()[4:-8], ' ', '_')}-generated_testset.csv", 'w', newline="") as f:
                     import pdb; pdb.set_trace()
                     writer = csv.writer(f)
                     writer.writerow(header)
@@ -267,10 +281,10 @@ def train_model(experiment_x: PreProcessing, model_type:str='autoencoder'):
 
     a = f'adult_{num_epochs}ep'
 
-    fm = open(f"./experiments/{str.replace(time.ctime(), ' ', '_')}-{a}.pth", "wb")
+    fm = open(path_to_exp+f"{str.replace(time.ctime(), ' ', '_')}-{a}.pth", "wb")
     torch.save(model.state_dict(), fm)
 
-    with open(f"./experiments/{str.replace(time.ctime(), ' ', '_')}-{a}.txt", 'w+') as f:
+    with open(path_to_exp+f"{str.replace(time.ctime(), ' ', '_')}-{a}.txt", 'w+') as f:
         f.write(f"Epochs: {num_epochs} \n")
         f.write(f"Learning Rate: {learning_rate} \n")
         f.write(f"weight decay: {wd}\n")
@@ -283,7 +297,7 @@ def train_model(experiment_x: PreProcessing, model_type:str='autoencoder'):
     end = time.time()
     print(f"Training on {num_epochs} epochs completed in {(end-start)/60} minutes.")
     return ave_train_loss, test_accuracy, num_epochs
-experiment = PreProcessing("params.yaml")
+experiment = PreProcessing(params_file)
 
 ave_train_loss, test_accuracy, num_epochs = train_model(experiment)
 
@@ -292,12 +306,12 @@ plt.plot(np.arange(1,num_epochs+1), np.array(test_accuracy))
 plt.xlabel("Epochs")
 plt.ylabel("L1 Loss")
 plt.title("Test Loss")
-plt.savefig(f"./experiments/{str.replace(time.ctime(), ' ', '_')}-{a}_test-loss.png")
+plt.savefig(path_to_exp+f"{str.replace(time.ctime(), ' ', '_')}-{a}_test-loss.png")
 
 
 plt.plot(np.arange(1,num_epochs+1), np.array(ave_train_loss))
 plt.xlabel("Epochs")
 plt.ylabel("L1 Loss")
 plt.title("Train Loss - average per epoch")
-plt.savefig(f"./experiments/{str.replace(time.ctime(), ' ', '_')}-{a}_train-loss.png")
+plt.savefig(path_to_exp+f"{str.replace(time.ctime(), ' ', '_')}-{a}_train-loss.png")
 
