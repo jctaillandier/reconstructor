@@ -8,6 +8,7 @@ import utilities as utils
 import tqdm
 import time
 import csv
+import pdb
 import yaml
 import json
 import torch
@@ -52,8 +53,17 @@ else:
 
 path_to_exp=f'./experiments/{exp_name}/'
 if os.path.isdir(path_to_exp):
-    raise FileExistsError("Experiment with name: \'{}\' already exists. Please choose a different name.".format(exp_name))
-os.mkdir(path_to_exp)
+    print("Experiment with name: \'{}\' already exists. Appending int to folder name".format(exp_name))
+    if os.path.isdir(path_to_exp):
+        expand = 1
+        while True:
+            expand += 1
+            new_file_name = path_to_exp[:-1] + str(expand) + '/'
+            if os.path.isfile(new_file_name):
+                continue
+            else:
+                file_name = new_file_name
+                break
 
 # Data import & Pre-processing
   
@@ -200,6 +210,7 @@ def train(model,train_loader, optimizer, loss_fn):
         optimizer.zero_grad()
         output = model(inputs.float())
         loss = loss_fn(output.float(), target.float())
+        pdb.set_trace()
         train_loss.append(loss)
         # Backprop
         loss.backward()
@@ -262,7 +273,7 @@ def train_model(experiment_x: PreProcessing, model_type:str='autoencoder'):
 
     if model_type == 'autoencoder':
         model = Autoencoder(in_dim, out_dim).to(device)
-    train_loss = torch.nn.L1Loss().to(device) # BCEWithLogitsLoss combines sig, so no need activate out layer with softmax
+    train_loss = torch.nn.L1Loss(reduction='mean').to(device) 
     test_loss_fn =torch.nn.L1Loss().to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate, weight_decay=wd)
     test_accuracy = []
