@@ -126,7 +126,7 @@ class PreProcessing:
             print(f"Categorical variable found. Running Pandas dummy_variable encoding on {len(data_cat_list)} columns \n")
             df_data = utils.dummy_encode(df2, data_cat_list)
             df_labels = utils.dummy_encode(df_labels, label_cat_list)
-            print(f"Saving output dataset under {import_path[:-4]}_NoCat.csv \n")
+            print(f"Saving encoded dataset under {import_path[:-4]}_NoCat.csv \n")
             df_data.to_csv(f"{import_path[:-4]}_NoCat.csv", index=False)
             
             df_data, df_labels = utils.adjust_enc_errors(df_data, df_labels)
@@ -203,6 +203,7 @@ def test(model, test_loader, test_loss_fn, last_epoch=False):
             if last_epoch == True:
                 data = inputs.tolist()
                 with open(f"./experiments/{str.replace(time.ctime()[4:-8], ' ', '_')}-original_testset.csv", 'w', newline="") as f:
+                    import pdb; pdb.set_trace()
                     writer = csv.writer(f)
                     writer.writerow(header)
                     writer.writerows(data)
@@ -212,6 +213,7 @@ def test(model, test_loader, test_loss_fn, last_epoch=False):
             if last_epoch == True:
                 data = output.tolist()
                 with open(f"./experiments/{str.replace(time.ctime()[4:-8], ' ', '_')}-generated_testset.csv", 'w', newline="") as f:
+                    import pdb; pdb.set_trace()
                     writer = csv.writer(f)
                     writer.writerow(header)
                     writer.writerows(data)
