@@ -1,5 +1,6 @@
 from typing import List
 import pandas as pd
+import os
 
 
 def dummy_encode(df: pd.core.frame.DataFrame, cat_cols : List[str] )-> pd.core.frame.DataFrame:
@@ -62,5 +63,26 @@ def adjust_enc_errors(df: pd.core.frame.DataFrame, df2: pd.core.frame.DataFrame)
 #         data_df = df[df2.columns]
 
         return df, labels_df
-    
-    
+
+def check_dir_path(path_to_check: str) -> str:
+    '''
+        Checks if provided path is currently a at current level directory.
+        If it is, it appends a number to the end and checks again 
+        until no directory with such name exists
+
+        path_to_check: str The path to location to check
+
+        return: str New path with which os.mkdir can be called
+    '''
+    if os.path.isdir(path_to_check):
+        print("Experiment with name: \'{}\' already exists. Appending int to folder name \n \n ".format(path_to_check))
+        if os.path.isdir(path_to_check):
+            expand = 1
+            while True:
+                expand += 1
+                new_path = path_to_check[:-1] + '_' + str(expand) + '/'
+                if os.path.isdir(new_path):
+                    continue
+                else:
+                    break
+    return new_path

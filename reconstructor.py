@@ -51,19 +51,9 @@ else:
     print("No name given to experiment.")
     exp_name = "no-name"
 
-path_to_exp=f'./experiments/{exp_name}/'
-if os.path.isdir(path_to_exp):
-    print("Experiment with name: \'{}\' already exists. Appending int to folder name".format(exp_name))
-    if os.path.isdir(path_to_exp):
-        expand = 1
-        while True:
-            expand += 1
-            new_file_name = path_to_exp[:-1] + str(expand) + '/'
-            if os.path.isfile(new_file_name):
-                continue
-            else:
-                file_name = new_file_name
-                break
+path_to_exp = utils.check_dir_path(f'./experiments/{exp_name}/')
+os.mkdir(path_to_exp)
+
 
 # Data import & Pre-processing
   
@@ -273,7 +263,7 @@ def train_model(experiment_x: PreProcessing, model_type:str='autoencoder'):
 
     if model_type == 'autoencoder':
         model = Autoencoder(in_dim, out_dim).to(device)
-    train_loss = torch.nn.L1Loss(reduction='mean').to(device) 
+    train_loss = torch.nn.L1Loss(reduction='none').to(device) 
     test_loss_fn =torch.nn.L1Loss().to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate, weight_decay=wd)
     test_accuracy = []
