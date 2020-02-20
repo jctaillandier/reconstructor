@@ -194,17 +194,22 @@ def train(model,train_loader, optimizer, loss_fn):
     train_loss = []
     for batch_idx, (inputs, target) in enumerate(train_loader):
       
-        #inputs = inputs.view(batchSize, 1,100,100)
         inputs, target = inputs.to(device), target.to(device)
         
         optimizer.zero_grad()
         output = model(inputs.float())
-        loss = loss_fn(output.float(), target.float())
-        pdb.set_trace()
-        train_loss.append(loss)
+        loss_vector = loss_fn(output.float(), target.float())
+        # loss_vector is batch x d
+        train_loss.append(sum(loss_vector))
         # Backprop
-        loss.backward()
-        optimizer.step()
+        loss_per_dim = torch.zeros(len(loss_vector[1])).to(device)
+        for i, batch in enumerate(loss_vector):
+            for j, feat in enumerate(batch):
+                loss_per_dim[j] = loss_per_dim[j] + feat
+
+        for loss in loss_per_dim:
+            loss.backward(retain_graph=True)
+            optimizer.step()
 
     mean_loss = sum(train_loss) / batch_idx+1
     return mean_loss
@@ -301,6 +306,8 @@ def train_model(experiment_x: PreProcessing, model_type:str='autoencoder'):
     end = time.time()
     print(f"Training on {num_epochs} epochs completed in {(end-start)/60} minutes.")
     return ave_train_loss, test_accuracy, num_epochs
+
+
 experiment = PreProcessing(params_file)
 
 ave_train_loss, test_accuracy, num_epochs = train_model(experiment)
@@ -311,7 +318,6 @@ plt.xlabel("Epochs")
 plt.ylabel("L1 Loss")
 plt.title("Test Loss")
 plt.savefig(path_to_exp+f"{str.replace(time.ctime(), ' ', '_')}-{a}_test-loss.png")
-
 
 plt.plot(np.arange(1,num_epochs+1), np.array(ave_train_loss))
 plt.xlabel("Epochs")

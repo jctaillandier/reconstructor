@@ -74,8 +74,9 @@ def check_dir_path(path_to_check: str) -> str:
 
         return: str New path with which os.mkdir can be called
     '''
+    new_path = path_to_check
     if os.path.isdir(path_to_check):
-        print("Experiment with name: \'{}\' already exists. Appending int to folder name \n \n ".format(path_to_check))
+        print("Experiment with name: \'{}\' already exists. Appending int to folder name. \n ".format(path_to_check))
         if os.path.isdir(path_to_check):
             expand = 1
             while True:
@@ -85,4 +86,5 @@ def check_dir_path(path_to_check: str) -> str:
                     continue
                 else:
                     break
+            print(f"Experiment name: {new_path} \n \n ")
     return new_path
