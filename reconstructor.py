@@ -218,9 +218,8 @@ def train(model,train_loader, optimizer, loss_fn):
             # stop = time.time()
             # print(f"bprop in {stop-startt} with {loss}")
             # pdb.set_trace()
-        print(f"one batch done: {batch_idx}")
     mean_loss = sum(train_loss) / batch_idx+1
-    
+    mean_loss = mean_loss.detach()
     return sum(mean_loss)
 
 def test(model, test_loader, test_loss_fn, last_epoch=False):
