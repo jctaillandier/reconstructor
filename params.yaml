@@ -7,7 +7,7 @@ data_loading:
             desc: "Where labels are. Line by line equivalent to data"
 model_params:
         batchSize: 
-            value: 32
+            value: 128
             desc: "Size of training batch size"
         test_batch_size: 
             value: 'full'

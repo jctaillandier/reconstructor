@@ -196,23 +196,32 @@ def train(model,train_loader, optimizer, loss_fn):
       
         inputs, target = inputs.to(device), target.to(device)
         
-        optimizer.zero_grad()
+        
         output = model(inputs.float())
         loss_vector = loss_fn(output.float(), target.float())
         # loss_vector is batch x d
+        #    need to average over batch but keep 
         train_loss.append(sum(loss_vector))
-        # Backprop
-        loss_per_dim = torch.zeros(len(loss_vector[1])).to(device)
-        for i, batch in enumerate(loss_vector):
-            for j, feat in enumerate(batch):
-                loss_per_dim[j] = loss_per_dim[j] + feat
-
+    
+        loss_per_dim = torch.sum(loss_vector, dim=0) 
+        #torch.zeros(len(loss_vector[1])).to(device)
+        # for i, batch in enumerate(loss_vector):
+        #     for j, feat in enumerate(batch):
+        #         loss_per_dim[j] = loss_per_dim[j] + feat
+        
         for loss in loss_per_dim:
+            # print(f"one loss: {loss}")
+            # startt = time.time()
+            # optimizer.zero_grad()
             loss.backward(retain_graph=True)
             optimizer.step()
-
+            # stop = time.time()
+            # print(f"bprop in {stop-startt} with {loss}")
+            # pdb.set_trace()
+        print(f"one batch done: {batch_idx}")
     mean_loss = sum(train_loss) / batch_idx+1
-    return mean_loss
+    
+    return sum(mean_loss)
 
 def test(model, test_loader, test_loss_fn, last_epoch=False):
     model.eval()
@@ -236,7 +245,6 @@ def test(model, test_loader, test_loss_fn, last_epoch=False):
             if last_epoch == True:
                 data = output.tolist()
                 with open(path_to_exp+f"{str.replace(time.ctime()[4:-8], ' ', '_')}-generated_testset.csv", 'w', newline="") as f:
-                    import pdb; pdb.set_trace()
                     writer = csv.writer(f)
                     writer.writerow(header)
                     writer.writerows(data)
@@ -264,7 +272,6 @@ def train_model(experiment_x: PreProcessing, model_type:str='autoencoder'):
 
     in_dim = experiment_x.dataloader.trdata.shape[1]
     out_dim = experiment_x.dataloader.trlabels.shape[1]
-    #######
 
     if model_type == 'autoencoder':
         model = Autoencoder(in_dim, out_dim).to(device)
@@ -278,7 +285,7 @@ def train_model(experiment_x: PreProcessing, model_type:str='autoencoder'):
         print(f"Epoch {epoch} running...")
 
         batch_ave_tr_loss = train(model,experiment_x.dataloader.train_loader, optimizer, train_loss)
-        ave_train_loss.append(batch_ave_tr_loss/experiment_x.batchSize)
+        
         last = False
         if epoch+1 == num_epochs: # then save the test batch input and output for metrics
             last = True
@@ -293,6 +300,9 @@ def train_model(experiment_x: PreProcessing, model_type:str='autoencoder'):
     fm = open(path_to_exp+f"{str.replace(time.ctime(), ' ', '_')}-{a}.pth", "wb")
     torch.save(model.state_dict(), fm)
 
+    end = time.time()
+    print(f"Training on {num_epochs} epochs completed in {(end-start)/60} minutes.")
+
     with open(path_to_exp+f"{str.replace(time.ctime(), ' ', '_')}-{a}.txt", 'w+') as f:
         f.write(f"Epochs: {num_epochs} \n")
         f.write(f"Learning Rate: {learning_rate} \n")
@@ -302,10 +312,10 @@ def train_model(experiment_x: PreProcessing, model_type:str='autoencoder'):
         f.write(f"Optimizer: {str(optimizer)}\n")
         f.write(f"Train loss values: {str(ave_train_loss)} \n")
         f.write(f"Test loss values: {str(test_accuracy)}\n")
+        f.write(f"Training completed in: {(end-start)/60:.2f} minutes\n")
 
-    end = time.time()
-    print(f"Training on {num_epochs} epochs completed in {(end-start)/60} minutes.")
-    return ave_train_loss, test_accuracy, num_epochs
+
+    return batch_ave_tr_loss, test_accuracy, num_epochs
 
 
 experiment = PreProcessing(params_file)
