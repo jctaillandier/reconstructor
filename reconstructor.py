@@ -9,6 +9,7 @@ import tqdm
 import time
 import csv
 import pdb
+import sys
 import yaml
 import json
 import torch
@@ -38,7 +39,8 @@ with open('./data/full_original.csv', 'r') as r:
         header = next(read)
 
 
-import sys
+if not sys.argv:
+    raise EnvironmentError("Not enough parameters added to command: Need (1) paramsfile.yaml and (2) experiment_name")
 args = sys.argv[1:]
 
 if args[0][-5:] != '.yaml':
@@ -199,25 +201,14 @@ def train(model,train_loader, optimizer, loss_fn):
         
         output = model(inputs.float())
         loss_vector = loss_fn(output.float(), target.float())
-        # loss_vector is batch x d
-        #    need to average over batch but keep 
+        
         train_loss.append(sum(loss_vector))
     
         loss_per_dim = torch.sum(loss_vector, dim=0) 
-        #torch.zeros(len(loss_vector[1])).to(device)
-        # for i, batch in enumerate(loss_vector):
-        #     for j, feat in enumerate(batch):
-        #         loss_per_dim[j] = loss_per_dim[j] + feat
         
         for loss in loss_per_dim:
-            # print(f"one loss: {loss}")
-            # startt = time.time()
-            # optimizer.zero_grad()
             loss.backward(retain_graph=True)
             optimizer.step()
-            # stop = time.time()
-            # print(f"bprop in {stop-startt} with {loss}")
-            # pdb.set_trace()
     mean_loss = sum(train_loss) / batch_idx+1
     mean_loss = mean_loss.detach()
     return sum(mean_loss)
@@ -284,7 +275,7 @@ def train_model(experiment_x: PreProcessing, model_type:str='autoencoder'):
         print(f"Epoch {epoch} running...")
 
         batch_ave_tr_loss = train(model,experiment_x.dataloader.train_loader, optimizer, train_loss)
-        
+        ave_train_loss.append(batch_ave_tr_loss.numpy().item())
         last = False
         if epoch+1 == num_epochs: # then save the test batch input and output for metrics
             last = True
@@ -314,23 +305,26 @@ def train_model(experiment_x: PreProcessing, model_type:str='autoencoder'):
         f.write(f"Training completed in: {(end-start)/60:.2f} minutes\n")
 
 
-    return batch_ave_tr_loss, test_accuracy, num_epochs
+    return ave_train_loss, test_accuracy, num_epochs
 
 
 experiment = PreProcessing(params_file)
 
 ave_train_loss, test_accuracy, num_epochs = train_model(experiment)
-
 a = f'adult_{num_epochs}ep'
-plt.plot(np.arange(1,num_epochs+1), np.array(test_accuracy))
+
+x_axis = np.arange(1,num_epochs+1)
+plt.figure(figsize=(9, 3))
+plt.subplot(1,2,1)
+plt.plot(x_axis, test_accuracy)
 plt.xlabel("Epochs")
 plt.ylabel("L1 Loss")
 plt.title("Test Loss")
-plt.savefig(path_to_exp+f"{str.replace(time.ctime(), ' ', '_')}-{a}_test-loss.png")
 
-plt.plot(np.arange(1,num_epochs+1), np.array(ave_train_loss))
+plt.subplot(1,2,2)
+plt.plot(x_axis, ave_train_loss)
 plt.xlabel("Epochs")
 plt.ylabel("L1 Loss")
-plt.title("Train Loss - average per epoch")
+plt.title("Train Loss")
 plt.savefig(path_to_exp+f"{str.replace(time.ctime(), ' ', '_')}-{a}_train-loss.png")
 
