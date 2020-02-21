@@ -244,8 +244,8 @@ def test(model, test_loader, test_loss_fn, last_epoch=False):
             test_size = len(inputs.float())
             test_loss += test_loss_fn(output.float(), target.float()).item() 
             batch_ave += test_loss/test_size
-    pdb.set_trace()
-    return batch_ave/(test_loader.data.shape[0])
+    
+    return batch_ave
 
 
 
@@ -284,7 +284,8 @@ def train_model(experiment_x: PreProcessing, model_type:str='autoencoder'):
         loss = test(model, experiment_x.dataloader.test_loader, test_loss_fn, last)
 
         print(f"Epoch {epoch} complete. Test Loss: {loss:.4f} \n")      
-        test_accuracy.append(loss)
+        pdb.set_trace()
+        test_accuracy.append(loss/len(experiment_x.dataloader.test_loader.dataset))
 
 
     a = f'adult_{num_epochs}ep'
