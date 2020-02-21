@@ -7,6 +7,7 @@ import utilities as utils
 # from Stats import Plots as Pl
 import tqdm
 import time
+import math
 import csv
 import pdb
 import sys
@@ -218,6 +219,8 @@ def test(model, test_loader, test_loss_fn, last_epoch=False):
     
     test_loss = 0
     test_size = 0
+    batch_ave = 0
+
     with torch.no_grad():
         for inputs, target in test_loader:
 
@@ -239,11 +242,11 @@ def test(model, test_loader, test_loss_fn, last_epoch=False):
                     writer.writerow(header)
                     writer.writerows(data)
             
-            test_size += len(inputs.float())
+            test_size = len(inputs.float())
             test_loss += test_loss_fn(output.float(), target.float()).item() 
-    test_loss /= test_size
-
-    return test_loss
+            batch_ave += test_loss/test_size
+    pdb.set_trace()
+    return batch_ave/(test_loader.data.shape[0])
 
 
 
