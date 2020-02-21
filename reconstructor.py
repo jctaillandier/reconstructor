@@ -220,7 +220,6 @@ def test(model, test_loader, test_loss_fn, last_epoch=False):
     test_loss = 0
     test_size = 0
     batch_ave = 0
-
     with torch.no_grad():
         for inputs, target in test_loader:
 
