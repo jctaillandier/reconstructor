@@ -14,6 +14,7 @@ import sys
 import yaml
 import json
 import torch
+import argparse
 import random
 import os.path
 import warnings
@@ -39,6 +40,8 @@ with open('./data/full_original.csv', 'r') as r:
         read = csv.reader(r)
         header = next(read)
 
+# parser = argparse.ArgumentParser()
+# args = utils. parse_arguments(parser)
 
 if not sys.argv:
     raise EnvironmentError("Not enough parameters added to command: Need (1) paramsfile.yaml and (2) experiment_name")
@@ -284,7 +287,6 @@ def train_model(experiment_x: PreProcessing, model_type:str='autoencoder'):
         loss = test(model, experiment_x.dataloader.test_loader, test_loss_fn, last)
 
         print(f"Epoch {epoch} complete. Test Loss: {loss:.4f} \n")      
-        pdb.set_trace()
         test_accuracy.append(loss/len(experiment_x.dataloader.test_loader.dataset))
 
 
@@ -311,23 +313,24 @@ def train_model(experiment_x: PreProcessing, model_type:str='autoencoder'):
     return ave_train_loss, test_accuracy, num_epochs
 
 
-experiment = PreProcessing(params_file)
+if __name__ == '__main__':
+    experiment = PreProcessing(params_file)
 
-ave_train_loss, test_accuracy, num_epochs = train_model(experiment)
-a = f'adult_{num_epochs}ep'
+    ave_train_loss, test_accuracy, num_epochs = train_model(experiment)
+    a = f'adult_{num_epochs}ep'
 
-x_axis = np.arange(1,num_epochs+1)
-plt.figure(figsize=(9, 3))
-plt.subplot(1,2,1)
-plt.plot(x_axis, test_accuracy)
-plt.xlabel("Epochs")
-plt.ylabel("L1 Loss")
-plt.title("Test Loss")
+    x_axis = np.arange(1,num_epochs+1)
+    plt.figure(figsize=(9, 3))
+    plt.subplot(1,2,1)
+    plt.plot(x_axis, test_accuracy)
+    plt.xlabel("Epochs")
+    plt.ylabel("L1 Loss")
+    plt.title("Test Loss")
 
-plt.subplot(1,2,2)
-plt.plot(x_axis, ave_train_loss)
-plt.xlabel("Epochs")
-plt.ylabel("L1 Loss")
-plt.title("Train Loss")
-plt.savefig(path_to_exp+f"{str.replace(time.ctime(), ' ', '_')}-{a}_train-loss.png")
+    plt.subplot(1,2,2)
+    plt.plot(x_axis, ave_train_loss)
+    plt.xlabel("Epochs")
+    plt.ylabel("L1 Loss")
+    plt.title("Train Loss")
+    plt.savefig(path_to_exp+f"{str.replace(time.ctime(), ' ', '_')}-{a}_train-loss.png")
 
