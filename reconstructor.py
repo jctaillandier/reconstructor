@@ -36,9 +36,7 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 CPU_DEVICE = torch.device("cpu")
 GET_VALUE = lambda x: x.to(CPU_DEVICE).data.numpy().reshape(-1)[0]
 print(f"\n *** \n Currently running on {device}\n *** \n")
-with open('./data/full_original.csv', 'r') as r:
-        read = csv.reader(r)
-        header = next(read)
+
 
 # parser = argparse.ArgumentParser()
 # args = utils. parse_arguments(parser)
@@ -161,11 +159,12 @@ class PreProcessing:
                 
             df_labels.to_csv(f"{label_path[:-4]}_NoCat.csv", index=False)
             self.dataloader = My_dataLoader(self.batchSize, f"{import_path[:-4]}_NoCat.csv", f"{label_path[:-4]}_NoCat.csv", n_test, "income", test_batch_size)
-        
+            self.data_dataframe = df_data
+
         else: # no categorical vars found
             self.dataloader = My_dataLoader(self.batchSize, import_path, n_test, "income", test_batch_size)
+            self.data_dataframe = df_data
 
-# Box
 
 class Autoencoder(nn.Module):
     def __init__(self, in_dim, out_dim):
@@ -217,14 +216,14 @@ def train(model,train_loader, optimizer, loss_fn):
     mean_loss = mean_loss.detach()
     return sum(mean_loss)
 
-def test(model, test_loader, test_loss_fn, last_epoch=False):
+def test(model, experiment, test_loss_fn, last_epoch=False):
     model.eval()
     
     test_loss = 0
     test_size = 0
     batch_ave = 0
     with torch.no_grad():
-        for inputs, target in test_loader:
+        for inputs, target in experiment.dataloader.test_loader:
 
             inputs, target = inputs.to(device), target.to(device)
             
@@ -232,7 +231,7 @@ def test(model, test_loader, test_loss_fn, last_epoch=False):
                 data = inputs.tolist()
                 with open(path_to_exp+f"{str.replace(time.ctime()[4:-8], ' ', '_')}-original_testset.csv", 'w', newline="") as f:
                     writer = csv.writer(f)
-                    writer.writerow(header)
+                    writer.writerow(experiment.data_dataframe.columns.values)
                     writer.writerows(data)
                 
             output = model(inputs.float())
@@ -241,7 +240,7 @@ def test(model, test_loader, test_loss_fn, last_epoch=False):
                 data = output.tolist()
                 with open(path_to_exp+f"{str.replace(time.ctime()[4:-8], ' ', '_')}-generated_testset.csv", 'w', newline="") as f:
                     writer = csv.writer(f)
-                    writer.writerow(header)
+                    writer.writerow(experiment.data_dataframe.columns.values)
                     writer.writerows(data)
             
             test_size = len(inputs.float())
@@ -284,7 +283,7 @@ def train_model(experiment_x: PreProcessing, model_type:str='autoencoder'):
         last = False
         if epoch+1 == num_epochs: # then save the test batch input and output for metrics
             last = True
-        loss = test(model, experiment_x.dataloader.test_loader, test_loss_fn, last)
+        loss = test(model, experiment_x, test_loss_fn, last)
 
         print(f"Epoch {epoch} complete. Test Loss: {loss:.4f} \n")      
         test_accuracy.append(loss/len(experiment_x.dataloader.test_loader.dataset))
@@ -315,12 +314,14 @@ def train_model(experiment_x: PreProcessing, model_type:str='autoencoder'):
 
 if __name__ == '__main__':
     experiment = PreProcessing(params_file)
+    # pdb.set_trace()
 
     ave_train_loss, test_accuracy, num_epochs = train_model(experiment)
-    a = f'adult_{num_epochs}ep'
 
+    # TODO Abstract in class of function
+    a = f'adult_{num_epochs}ep'
     x_axis = np.arange(1,num_epochs+1)
-    plt.figure(figsize=(9, 3))
+    plt.figure()
     plt.subplot(1,2,1)
     plt.plot(x_axis, test_accuracy)
     plt.xlabel("Epochs")
@@ -333,4 +334,5 @@ if __name__ == '__main__':
     plt.ylabel("L1 Loss")
     plt.title("Train Loss")
     plt.savefig(path_to_exp+f"{str.replace(time.ctime(), ' ', '_')}-{a}_train-loss.png")
+    print(f"Experiment can be found under {path_to_exp}")
 
