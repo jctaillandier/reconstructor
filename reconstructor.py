@@ -170,21 +170,23 @@ class Autoencoder(nn.Module):
     def __init__(self, in_dim, out_dim):
         super(Autoencoder, self).__init__()
         self.encoder = nn.Sequential(
-            nn.Linear(in_dim, 16),
-            # batchnorm,
+            nn.Linear(in_dim, in_dim),
+            # batchnorm?,
             nn.LeakyReLU(),
-            nn.Linear(16, 8),
+            nn.Linear(in_dim,in_dim),
             # batchnorm,
-            nn.LeakyReLU(), nn.Linear(8, 4))#, nn.ReLU(True), nn.Linear(4, 4))
+            nn.LeakyReLU(), 
+            nn.Linear(in_dim,in_dim),
+            nn.LeakyReLU()
+        )
         self.decoder = nn.Sequential(
             # batchnorm,
-            nn.Linear(4, 16),
+            nn.Linear(in_dim, in_dim),
             nn.LeakyReLU(),
-            # batchnorm,
-#             nn.Linear(10, 16),
-#             nn.ReLU(True),
-            nn.Linear(16, 24),
-            nn.LeakyReLU(), nn.Linear(24, out_dim))
+            nn.Linear(in_dim, in_dim),
+            nn.LeakyReLU(), 
+            nn.Linear(in_dim, in_dim)
+        )
 
     def forward(self, x):
         x = self.encoder(x)
@@ -276,7 +278,7 @@ def train_model(experiment_x: PreProcessing, model_type:str='autoencoder'):
     ave_train_loss = []
 
     for epoch in range(num_epochs):
-        print(f"Epoch {epoch} running...")
+        print(f"Epoch {epoch} of {num_epochs} running...")
 
         batch_ave_tr_loss = train(model,experiment_x.dataloader.train_loader, optimizer, train_loss)
         ave_train_loss.append(batch_ave_tr_loss.numpy().item())
