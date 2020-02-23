@@ -1,0 +1,16 @@
+
+ *** 
+ Currently running on cuda:0
+ *** 
+
+Categorical variable found. Running Pandas dummy_variable encoding on 7 columns 
+
+Saving encoded dataset under ./data/full_a=0_E=19_NoCat.csv 
+
+Epoch 0 of 250 running...
+Traceback (most recent call last):
+  File "./reconstructor.py", line 321, in <module>
+    ave_train_loss, test_accuracy, num_epochs = train_model(experiment)
+  File "./reconstructor.py", line 284, in train_model
+    ave_train_loss.append(batch_ave_tr_loss.numpy().item())
+TypeError: can't convert CUDA tensor to numpy. Use Tensor.cpu() to copy the tensor to host memory first.
