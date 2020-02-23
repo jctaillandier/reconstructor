@@ -176,7 +176,7 @@ class Autoencoder(nn.Module):
             nn.Linear(in_dim,in_dim),
             # batchnorm,
             nn.LeakyReLU(), 
-            nn.Linear(in_dim,in_dim),
+            nn.Linear(in_dim,out_dim),
             nn.LeakyReLU()
         )
         self.decoder = nn.Sequential(
@@ -185,12 +185,12 @@ class Autoencoder(nn.Module):
             nn.LeakyReLU(),
             nn.Linear(in_dim, in_dim),
             nn.LeakyReLU(), 
-            nn.Linear(in_dim, in_dim)
+            nn.Linear(in_dim, out_dim)
         )
 
     def forward(self, x):
         x = self.encoder(x)
-        x = self.decoder(x)
+        # x = self.decoder(x)
         
         return x
     
@@ -281,7 +281,7 @@ def train_model(experiment_x: PreProcessing, model_type:str='autoencoder'):
         print(f"Epoch {epoch} of {num_epochs} running...")
 
         batch_ave_tr_loss = train(model,experiment_x.dataloader.train_loader, optimizer, train_loss)
-        ave_train_loss.append(batch_ave_tr_loss.numpy().item())
+        ave_train_loss.append(batch_ave_tr_loss.cpu().numpy().item())
         last = False
         if epoch+1 == num_epochs: # then save the test batch input and output for metrics
             last = True
@@ -306,9 +306,10 @@ def train_model(experiment_x: PreProcessing, model_type:str='autoencoder'):
         f.write(f"Training Loss: {str(train_loss)}\n")
         f.write(f"Test Loss: {str(test_loss_fn)} \n")
         f.write(f"Optimizer: {str(optimizer)}\n")
+        f.write(f"Model Architecture: {model}\n")
+        f.write(f"Training completed in: {(end-start)/60:.2f} minutes\n")
         f.write(f"Train loss values: {str(ave_train_loss)} \n")
         f.write(f"Test loss values: {str(test_accuracy)}\n")
-        f.write(f"Training completed in: {(end-start)/60:.2f} minutes\n")
 
 
     return ave_train_loss, test_accuracy, num_epochs
