@@ -3,6 +3,7 @@
 # # Imports
 from Modules import utilities as utils
 from Modules import analysisTools as at
+from Modules import datasets as d
 # import datasets as d
 
 # from Stats import Plots as Pl
@@ -197,7 +198,7 @@ class Autoencoder(nn.Module):
     
 
 
-def train(model: torch.nn.Module, train_loader:torch.utils.data.DataLoader, optimizer:torch.optim.optimizer, loss_fn) -> int:
+def train(model: torch.nn.Module, train_loader:torch.utils.data.DataLoader, optimizer:torch.optim, loss_fn) -> int:
     model.train()
     train_loss = []
     for batch_idx, (inputs, target) in enumerate(train_loader):
@@ -219,14 +220,14 @@ def train(model: torch.nn.Module, train_loader:torch.utils.data.DataLoader, opti
     mean_loss = mean_loss.detach()
     return sum(mean_loss)
 
-def test(model, experiment, test_loss_fn, last_epoch=False):
+def test(model, test_loader, test_loss_fn, last_epoch=False):
     model.eval()
     
     test_loss = 0
     test_size = 0
     batch_ave = 0
     with torch.no_grad():
-        for inputs, target in experiment.dataloader.test_loader:
+        for inputs, target in test_loader:
 
             inputs, target = inputs.to(device), target.to(device)
             
@@ -268,10 +269,10 @@ class Training:
         self.out_dim = experiment_x.dataloader.trlabels.shape[1]
 
         if model_type == 'autoencoder':
-            self.model = Autoencoder(in_dim, out_dim).to(device)
+            self.model = Autoencoder(self.in_dim, self.out_dim).to(device)
         self.train_loss = torch.nn.L1Loss(reduction='none').to(device) 
         self.test_loss_fn =torch.nn.L1Loss().to(device)
-        self.optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate, weight_decay=wd)
+        self.optimizer = torch.optim.Adam(self.model.parameters(), lr=self.learning_rate, weight_decay=self.wd)
 
     def train_model(self):
         '''
@@ -286,14 +287,14 @@ class Training:
         self.ave_train_loss = []
 
         for epoch in range(self.num_epochs):
-            print(f"Epoch {epoch} of {self.num_epochs} running...")
+            print(f"Epoch {epoch+1} of {self.num_epochs} running...")
 
             batch_ave_tr_loss = train(self.model,self.experiment_x.dataloader.train_loader, self.optimizer, self.train_loss)
             self.ave_train_loss.append(batch_ave_tr_loss.cpu().numpy().item())
             last = False
-            if epoch+1 == num_epochs: # then save the test batch input and output for metrics
+            if epoch+1 == self.num_epochs: # then save the test batch input and output for metrics
                 last = True
-            loss, san_data, gen_data = test(self.model, self.experiment_x, self.test_loss_fn, last)
+            loss, san_data, gen_data = test(self.model, self.experiment_x.dataloader.test_loader, self.test_loss_fn, last)
 
             print(f"Epoch {epoch} complete. Test Loss: {loss:.4f} \n")      
             self.test_accuracy.append(loss/len(self.experiment_x.dataloader.test_loader.dataset))
@@ -302,16 +303,16 @@ class Training:
             self.gen_data = gen_data
 
 
-        a = f'adult_{num_epochs}ep'
+        a = f'adult_{self.num_epochs}ep'
 
         fm = open(path_to_exp+f"{str.replace(time.ctime(), ' ', '_')}-{a}.pth", "wb")
         torch.save(self.model.state_dict(), fm)
 
         end = time.time()
-        print(f"Training on {num_epochs} epochs completed in {(end-start)/60} minutes.")
+        print(f"Training on {self.num_epochs} epochs completed in {(end-start)/60} minutes.")
 
         with open(path_to_exp+f"{str.replace(time.ctime(), ' ', '_')}-{a}.txt", 'w+') as f:
-            f.write(f"Epochs: {num_epochs} \n")
+            f.write(f"Epochs: {self.num_epochs} \n")
             f.write(f"Learning Rate: {self.learning_rate} \n")
             f.write(f"weight decay: {self.wd}\n")
             f.write(f"Training Loss: {str(self.train_loss)}\n")
@@ -323,26 +324,36 @@ class Training:
             f.write(f"Test loss values: {str(self.test_accuracy)}\n")
 
 
-    def post_training_metrics(self, exp_name, generated_test_set, sanitized_test_set, original_test_set):
+    def post_training_metrics(self):
         '''
-            This will calculate diversity within generated dataset (and original?)
+            This will calculate diversity within generated dataset 
                 And the damage the generated dataset has
                     Those will be compared to both the original and sanitized
 
             
         '''
+
+        pd_og_data = pd.DataFrame(self.experiment_x.dataloader.telabels.numpy())
+        pd_san_data = pd.DataFrame(self.san_data)
+        pd_gen_data = pd.DataFrame(self.gen_data)
+
         # Damage First
         dam = at.Damage()
         # Original <-> Sanitized
-        os_d_cat, os_d_num = dam(original=original_test_set, transformed=sanitized_test_set)
+        os_d_cat, os_d_num = dam(original=pd_og_data, transformed=pd_san_data)
         # Sanitized <-> generated
-        sg_d_cat, sg_d_num =dam(original=sanitized_test_set, transformed=generated_test_set)
+        sg_d_cat, sg_d_num =dam(original=pd_san_data, transformed=pd_gen_data)
         # Generated <-> Original
-        go_d_cat, go_d_num =dam(original=generated_test_set, transformed=original_test_set)
+        go_d_cat, go_d_num =dam(original=pd_gen_data, transformed=pd_og_data)
 
         # Visualisation:
-        # dr = at.DimensionalityReduction(seed=p.RandomState)
-        pdb.set_trace()
+        dr = at.DimensionalityReduction()
+        dr.clusters_original_vs_transformed_plots({"original": pd_og_data, "transformed": pd_san_data},
+                                                  labels=pd_og_data[20],
+                                                  savefig=path_to_exp+"damage.png")
+        dr.original_vs_transformed_plots({"original": pd_og_data, "transformed": pd_san_data}, savefig=path_to_exp+"damage2.png")
+        
+        # pdb.set_trace()
 
         # Saving all results:
 
@@ -360,7 +371,7 @@ if __name__ == '__main__':
     my_training = Training(experiment)
     my_training.train_model()
 
-    my_training.post_training_metrics(exp_name, my_training.gen_data, experiment.dataloader.telabels, my_training.san_data)
+    my_training.post_training_metrics()
 
     # TODO Abstract in class of function
     a = f'adult_{my_training.num_epochs}ep'
