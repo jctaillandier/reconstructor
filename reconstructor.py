@@ -1,7 +1,8 @@
 
 
 # # Imports
-import utilities as utils
+from Modules import utilities as utils
+from Modules import analysisTools as at
 # import datasets as d
 
 # from Stats import Plots as Pl
@@ -167,7 +168,7 @@ class PreProcessing:
 
 
 class Autoencoder(nn.Module):
-    def __init__(self, in_dim, out_dim):
+    def __init__(self, in_dim: int, out_dim: int):
         super(Autoencoder, self).__init__()
         self.encoder = nn.Sequential(
             nn.Linear(in_dim, in_dim),
@@ -196,7 +197,7 @@ class Autoencoder(nn.Module):
     
 
 
-def train(model,train_loader, optimizer, loss_fn):
+def train(model: torch.nn.Module, train_loader:torch.utils.data.DataLoader, optimizer:torch.optim.optimizer, loss_fn) -> int:
     model.train()
     train_loss = []
     for batch_idx, (inputs, target) in enumerate(train_loader):
@@ -230,112 +231,155 @@ def test(model, experiment, test_loss_fn, last_epoch=False):
             inputs, target = inputs.to(device), target.to(device)
             
             if last_epoch == True:
-                data = inputs.tolist()
+                og_data = inputs.tolist()
                 with open(path_to_exp+f"{str.replace(time.ctime()[4:-8], ' ', '_')}-original_testset.csv", 'w', newline="") as f:
                     writer = csv.writer(f)
                     writer.writerow(experiment.data_dataframe.columns.values)
-                    writer.writerows(data)
-                
+                    writer.writerows(og_data)
+            else:
+                og_data = []
+
             output = model(inputs.float())
 
             if last_epoch == True:
-                data = output.tolist()
+                gen_data = output.tolist()
                 with open(path_to_exp+f"{str.replace(time.ctime()[4:-8], ' ', '_')}-generated_testset.csv", 'w', newline="") as f:
                     writer = csv.writer(f)
                     writer.writerow(experiment.data_dataframe.columns.values)
-                    writer.writerows(data)
-            
+                    writer.writerows(gen_data)
+            else:
+                gen_data = []
+
             test_size = len(inputs.float())
             test_loss += test_loss_fn(output.float(), target.float()).item() 
             batch_ave += test_loss/test_size
     
-    return batch_ave
+    return batch_ave, og_data, gen_data
 
 
+class Training:
+    def __init__(self, experiment_x: PreProcessing, model_type:str='autoencoder'):
+        self.wd = experiment_x.params['model_params']['weight_decay']['value']
+        self.learning_rate = experiment_x.params['model_params']['learning_rate']['value']
+        self.experiment_x = experiment_x
+        self.num_epochs = int(experiment_x.params['model_params']['num_epochs']['value'])
 
-def train_model(experiment_x: PreProcessing, model_type:str='autoencoder'):
-    '''
-        Takes care of all model training, testing and generation of data
+        self.in_dim = experiment_x.dataloader.trdata.shape[1]
+        self.out_dim = experiment_x.dataloader.trlabels.shape[1]
+
+        if model_type == 'autoencoder':
+            self.model = Autoencoder(in_dim, out_dim).to(device)
+        self.train_loss = torch.nn.L1Loss(reduction='none').to(device) 
+        self.test_loss_fn =torch.nn.L1Loss().to(device)
+        self.optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate, weight_decay=wd)
+
+    def train_model(self):
+        '''
+            Takes care of all model training, testing and generation of data
+            
+            experiment_x: PreProcessing object that contains all data and parameters
         
-        experiment_x: PreProcessing object that contains all data and parameters
-    
-    '''
-    start = time.time()
-    wd = experiment_x.params['model_params']['weight_decay']['value']
-    learning_rate = experiment_x.params['model_params']['learning_rate']['value']
+        '''
+        start = time.time()
 
-    num_epochs = int(experiment_x.params['model_params']['num_epochs']['value'])
+        self.test_accuracy = []
+        self.ave_train_loss = []
 
-    in_dim = experiment_x.dataloader.trdata.shape[1]
-    out_dim = experiment_x.dataloader.trlabels.shape[1]
+        for epoch in range(self.num_epochs):
+            print(f"Epoch {epoch} of {self.num_epochs} running...")
 
-    if model_type == 'autoencoder':
-        model = Autoencoder(in_dim, out_dim).to(device)
-    train_loss = torch.nn.L1Loss(reduction='none').to(device) 
-    test_loss_fn =torch.nn.L1Loss().to(device)
-    optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate, weight_decay=wd)
-    test_accuracy = []
-    ave_train_loss = []
+            batch_ave_tr_loss = train(self.model,self.experiment_x.dataloader.train_loader, self.optimizer, self.train_loss)
+            self.ave_train_loss.append(batch_ave_tr_loss.cpu().numpy().item())
+            last = False
+            if epoch+1 == num_epochs: # then save the test batch input and output for metrics
+                last = True
+            loss, san_data, gen_data = test(self.model, self.experiment_x, self.test_loss_fn, last)
 
-    for epoch in range(num_epochs):
-        print(f"Epoch {epoch} of {num_epochs} running...")
-
-        batch_ave_tr_loss = train(model,experiment_x.dataloader.train_loader, optimizer, train_loss)
-        ave_train_loss.append(batch_ave_tr_loss.cpu().numpy().item())
-        last = False
-        if epoch+1 == num_epochs: # then save the test batch input and output for metrics
-            last = True
-        loss = test(model, experiment_x, test_loss_fn, last)
-
-        print(f"Epoch {epoch} complete. Test Loss: {loss:.4f} \n")      
-        test_accuracy.append(loss/len(experiment_x.dataloader.test_loader.dataset))
+            print(f"Epoch {epoch} complete. Test Loss: {loss:.4f} \n")      
+            self.test_accuracy.append(loss/len(self.experiment_x.dataloader.test_loader.dataset))
+        if last:
+            self.san_data = san_data
+            self.gen_data = gen_data
 
 
-    a = f'adult_{num_epochs}ep'
+        a = f'adult_{num_epochs}ep'
 
-    fm = open(path_to_exp+f"{str.replace(time.ctime(), ' ', '_')}-{a}.pth", "wb")
-    torch.save(model.state_dict(), fm)
+        fm = open(path_to_exp+f"{str.replace(time.ctime(), ' ', '_')}-{a}.pth", "wb")
+        torch.save(self.model.state_dict(), fm)
 
-    end = time.time()
-    print(f"Training on {num_epochs} epochs completed in {(end-start)/60} minutes.")
+        end = time.time()
+        print(f"Training on {num_epochs} epochs completed in {(end-start)/60} minutes.")
 
-    with open(path_to_exp+f"{str.replace(time.ctime(), ' ', '_')}-{a}.txt", 'w+') as f:
-        f.write(f"Epochs: {num_epochs} \n")
-        f.write(f"Learning Rate: {learning_rate} \n")
-        f.write(f"weight decay: {wd}\n")
-        f.write(f"Training Loss: {str(train_loss)}\n")
-        f.write(f"Test Loss: {str(test_loss_fn)} \n")
-        f.write(f"Optimizer: {str(optimizer)}\n")
-        f.write(f"Model Architecture: {model}\n")
-        f.write(f"Training completed in: {(end-start)/60:.2f} minutes\n")
-        f.write(f"Train loss values: {str(ave_train_loss)} \n")
-        f.write(f"Test loss values: {str(test_accuracy)}\n")
+        with open(path_to_exp+f"{str.replace(time.ctime(), ' ', '_')}-{a}.txt", 'w+') as f:
+            f.write(f"Epochs: {num_epochs} \n")
+            f.write(f"Learning Rate: {self.learning_rate} \n")
+            f.write(f"weight decay: {self.wd}\n")
+            f.write(f"Training Loss: {str(self.train_loss)}\n")
+            f.write(f"Test Loss: {str(self.test_loss_fn)} \n")
+            f.write(f"self.self.optimizer: {str(self.optimizer)}\n")
+            f.write(f"Model Architecture: {self.model}\n")
+            f.write(f"Training completed in: {(end-start)/60:.2f} minutes\n")
+            f.write(f"Train loss values: {str(self.ave_train_loss)} \n")
+            f.write(f"Test loss values: {str(self.test_accuracy)}\n")
 
 
-    return ave_train_loss, test_accuracy, num_epochs
+    def post_training_metrics(self, exp_name, generated_test_set, sanitized_test_set, original_test_set):
+        '''
+            This will calculate diversity within generated dataset (and original?)
+                And the damage the generated dataset has
+                    Those will be compared to both the original and sanitized
 
+            
+        '''
+        # Damage First
+        dam = at.Damage()
+        # Original <-> Sanitized
+        os_d_cat, os_d_num = dam(original=original_test_set, transformed=sanitized_test_set)
+        # Sanitized <-> generated
+        sg_d_cat, sg_d_num =dam(original=sanitized_test_set, transformed=generated_test_set)
+        # Generated <-> Original
+        go_d_cat, go_d_num =dam(original=generated_test_set, transformed=original_test_set)
+
+        # Visualisation:
+        # dr = at.DimensionalityReduction(seed=p.RandomState)
+        pdb.set_trace()
+
+        # Saving all results:
+
+
+        # Then Diversity 
+
+        
+        # Save all in file TODO graphs
+        with open(path_to_exp+f"_dam_div.txt", 'w+') as f:
+            f.write(f"")
 
 if __name__ == '__main__':
     experiment = PreProcessing(params_file)
     # pdb.set_trace()
+    my_training = Training(experiment)
+    my_training.train_model()
 
-    ave_train_loss, test_accuracy, num_epochs = train_model(experiment)
+    my_training.post_training_metrics(exp_name, my_training.gen_data, experiment.dataloader.telabels, my_training.san_data)
 
     # TODO Abstract in class of function
-    a = f'adult_{num_epochs}ep'
-    x_axis = np.arange(1,num_epochs+1)
+    a = f'adult_{my_training.num_epochs}ep'
+    x_axis = np.arange(1,my_training.num_epochs+1)
     plt.figure()
     plt.subplot(1,2,1)
-    plt.plot(x_axis, test_accuracy)
+    plt.plot(x_axis, my_training.test_accuracy)
     plt.xlabel("Epochs")
     plt.ylabel("L1 Loss")
     plt.title("Test Loss")
 
     plt.subplot(1,2,2)
-    plt.plot(x_axis, ave_train_loss)
+    plt.plot(x_axis, my_training.ave_train_loss)
     plt.xlabel("Epochs")
     plt.ylabel("L1 Loss")
     plt.title("Train Loss")
     plt.savefig(path_to_exp+f"{str.replace(time.ctime(), ' ', '_')}-{a}_train-loss.png")
+
+    
+
     print(f"Experiment can be found under {path_to_exp}")
 
