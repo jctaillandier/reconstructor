@@ -296,7 +296,7 @@ class Training:
                 last = True
             loss, san_data, gen_data = test(self.model, self.experiment_x.dataloader.test_loader, self.test_loss_fn, last)
 
-            print(f"Epoch {epoch} complete. Test Loss: {loss:.4f} \n")      
+            print(f"Epoch {epoch+1} complete. Test Loss: {loss:.4f} \n")      
             self.test_accuracy.append(loss/len(self.experiment_x.dataloader.test_loader.dataset))
         if last:
             self.san_data = san_data
@@ -326,8 +326,8 @@ class Training:
 
     def post_training_metrics(self):
         '''
-            This will calculate diversity within generated dataset 
-                And the damage the generated dataset has
+            This will calculate (1) diversity within generated dataset, 
+                and the (2) damage the generated dataset has
                     Those will be compared to both the original and sanitized
 
             
@@ -337,21 +337,31 @@ class Training:
         pd_san_data = pd.DataFrame(self.san_data)
         pd_gen_data = pd.DataFrame(self.gen_data)
 
+        dam_dict = {}
+        dam_dict['orig_san'] = [pd_og_data, pd_san_data]
+        dam_dict['san_gen'] = [pd_san_data, pd_gen_data]
+        dam_dict['gen_orig'] = [pd_gen_data, pd_og_data]
+
         # Damage First
         dam = at.Damage()
         # Original <-> Sanitized
-        os_d_cat, os_d_num = dam(original=pd_og_data, transformed=pd_san_data)
-        # Sanitized <-> generated
-        sg_d_cat, sg_d_num =dam(original=pd_san_data, transformed=pd_gen_data)
-        # Generated <-> Original
-        go_d_cat, go_d_num =dam(original=pd_gen_data, transformed=pd_og_data)
+        os_d_cat, os_d_num = dam(original=dam_dict['orig_san'][0], transformed=dam_dict['orig_san'][1])
 
-        # Visualisation:
-        dr = at.DimensionalityReduction()
-        dr.clusters_original_vs_transformed_plots({"original": pd_og_data, "transformed": pd_san_data},
-                                                  labels=pd_og_data[20],
-                                                  savefig=path_to_exp+"damage.png")
-        dr.original_vs_transformed_plots({"original": pd_og_data, "transformed": pd_san_data}, savefig=path_to_exp+"damage2.png")
+        # Sanitized <-> generated
+        sg_d_cat, sg_d_num =dam(original=dam_dict['san_gen'][0], transformed=dam_dict['san_gen'][1])
+
+        # Generated <-> Original
+        go_d_cat, go_d_num =dam(original=dam_dict['gen_orig'][0], transformed=dam_dict['gen_orig'][1])
+        
+
+        # Visualisation for all three
+        os.mkdir(f"{path_to_exp}dim_reduce/")
+        for key in dam_dict:
+            dr = at.DimensionalityReduction()
+            dr.clusters_original_vs_transformed_plots({"original": dam_dict[key][0], "transformed": dam_dict[key][0]},
+                                                    labels=pd_og_data[20],
+                                                    savefig=path_to_exp+f"dim_reduce/{key}_damage.png")
+            dr.original_vs_transformed_plots({"original": dam_dict[key][0], "transformed": dam_dict[key][1]}, savefig=path_to_exp+f"dim_reduce/{key}_damage.png")
         
         # pdb.set_trace()
 
