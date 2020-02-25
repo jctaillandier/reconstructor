@@ -64,7 +64,7 @@ os.mkdir(path_to_exp)
 # Data import & Pre-processing
   
 class My_dataLoader:
-    def __init__(self, batch_size : int, data_path :str, label_path:str, n_train :int,  label_col_name:str, test_batch_size:int=128):
+    def __init__(self, batch_size : int, data_path :str, label_path:str, n_train :int, test_batch_size:int=128):
         '''
             Creates train and test loaders from local files, to be easily used by torch.nn
             
@@ -72,9 +72,8 @@ class My_dataLoader:
             :data_path: path to csv where data is. 2d file
             :label_path: csv containing labels. line by line equivalent to data_path file
             :n_train: int for the size of training set (assigned randomly)
-            :test_batch: size of batches at test time. If none, will be same 
+            :test_batch_size: size of batches at test time. If none, will be same 
                     as training
-            :label_col_name name of columns that contains labels
         '''
         self.batch_size = batch_size
         self.train_size = n_train
@@ -131,7 +130,7 @@ class PreProcessing:
 
 
         df2 = pd.read_csv(import_path)
-        df_labels = pd.read_csv(label_path)
+        self.df_labels = pd.read_csv(label_path)
         n_test = int(len(df2.iloc[:,0])*percent_train_set)
 
         #Make encoding object to transform categorical
@@ -143,11 +142,9 @@ class PreProcessing:
 
         # MAke sure post processing label and data are of same shape
         if self.data_pp.df.shape != self.data_pp.df.shape:
-            print(self.df_data.shape)
-            print(self.df_labels.shape)
-            raise ValueError("The labels csv and data post-encoding don't have the same shape.")
+            raise ValueError(f"The data csv ({self.data_pp.df.shape}) and labels ({self.data_pp.df.shape}) post-encoding don't have the same shape.")
 
-        self.dataloader = My_dataLoader(batchSize, f"{import_path[:-4]}_NoCat.csv", f"{label_path[:-4]}_NoCat.csv", n_test, "income", test_batch_size)
+        self.dataloader = My_dataLoader(self.batchSize, f"{import_path[:-4]}_NoCat.csv", f"{label_path[:-4]}_NoCat.csv", n_test, test_batch_size)
 
         self.data_dataframe = self.data_pp.df
         self.labels_dataframe = self.labels_pp.df
@@ -205,40 +202,39 @@ def train(model: torch.nn.Module, train_loader:torch.utils.data.DataLoader, opti
     mean_loss = mean_loss.detach()
     return sum(mean_loss)
 
-def test(model, test_loader, test_loss_fn, last_epoch=False):
+def test(model: torch.nn.Module, experiment: PreProcessing, test_loss_fn:torch.optim, last_epoch: bool = False) -> (int, pd.DataFrame, pd.DataFrame):
+    '''
+        Does the test loop and if last epoch, decodes data, generates new data, returns and saves both 
+        under ./experiments/<experiment_name>/
+
+        :PARAMS
+        model: torch model to use
+    '''
     model.eval()
     
     test_loss = 0
     test_size = 0
     batch_ave = 0
     with torch.no_grad():
-        for inputs, target in test_loader:
+        for inputs, target in experiment.dataloader.test_loader:
 
             inputs, target = inputs.to(device), target.to(device)
             
             if last_epoch == True:
-                ###
-                # Need to decode dummy vars
-                ###
-                og_data = inputs.tolist()
-                with open(path_to_exp+f"{str.replace(time.ctime()[4:-8], ' ', '_')}-original_testset.csv", 'w', newline="") as f:
-                    writer = csv.writer(f)
-                    writer.writerow(experiment.data_dataframe.columns.values)
-                    writer.writerows(og_data)
+                # Decode dummy vars
+                experiment.data_pp.inverse_transform()
+                san_data = experiment.data_pp.df
+                experiment.data_pp.df.to_csv(path_to_exp+f"{str.replace(time.ctime()[4:-8], ' ', '_')}-original_testset.csv", index=False)
+
             else:
-                og_data = []
+                san_data = []
 
             output = model(inputs.float())
 
             if last_epoch == True:
-                ###
-                # Need to decode dummy vars
-                ###
-                gen_data = output.tolist()
-                with open(path_to_exp+f"{str.replace(time.ctime()[4:-8], ' ', '_')}-generated_testset.csv", 'w', newline="") as f:
-                    writer = csv.writer(f)
-                    writer.writerow(experiment.data_dataframe.columns.values)
-                    writer.writerows(gen_data)
+                # decode dummy vars
+
+
             else:
                 gen_data = []
 
@@ -246,7 +242,7 @@ def test(model, test_loader, test_loss_fn, last_epoch=False):
             test_loss += test_loss_fn(output.float(), target.float()).item() 
             batch_ave += test_loss/test_size
     
-    return batch_ave, og_data, gen_data
+    return batch_ave, san_data, 'gen_data' # this needs to be decoded, but we cant directyl with d.de
 
 
 class Training:
@@ -290,10 +286,10 @@ class Training:
                 last = True
 
             # Check test set metrics (+ generate data if last epoch )
-            loss, san_data, gen_data = test(self.model, self.experiment_x.dataloader.test_loader, self.test_loss_fn, last)
+            loss, san_data, gen_data = test(self.model, self.experiment_x, self.test_loss_fn, last)
 
-            print(f"Epoch {epoch+1} complete. Test Loss: {loss:.4f} \n")      
-            self.test_accuracy.append(loss/len(self.experiment_x.dataloader.test_loader.dataset))
+            print(f"Epoch {epoch+1} complete. Test Loss: {loss:.6f} \n")      
+            self.test_accuracy.append(loss)#/len(self.experiment_x.dataloader.test_loader.dataset))
         if last: # redundant statement
             self.san_data = san_data
             self.gen_data = gen_data
@@ -330,48 +326,49 @@ class Training:
             
         '''
         start = time.time()
-        pd_og_data = pd.DataFrame(self.experiment_x.dataloader.telabels.numpy())
-        pd_san_data = pd.DataFrame(self.san_data)
-        pd_gen_data = pd.DataFrame(self.gen_data)
+        pd_og_data = self.experiment_x.df_labels
+        pd_san_data = self.san_data
+        pd_gen_data = self.gen_data
 
-        dam_dict = {}
-        dam_dict['orig_san'] = [pd_og_data, pd_san_data]
-        dam_dict['san_gen'] = [pd_san_data, pd_gen_data]
-        dam_dict['gen_orig'] = [pd_gen_data, pd_og_data]
+        test_data_dict = {}
+        test_data_dict['orig_san'] = [pd_og_data, pd_san_data]
+        test_data_dict['san_gen'] = [pd_san_data, pd_gen_data]
+        test_data_dict['gen_orig'] = [pd_gen_data, pd_og_data]
 
         # Damage First
         dam = at.Damage()
+        dam_dict = {}
+        pdb.set_trace()
         # Original <-> Sanitized
-        os_d_cat, os_d_num = dam(original=dam_dict['orig_san'][0], transformed=dam_dict['orig_san'][1])
-
+        os_d_cat, os_d_num = dam(original=test_data_dict['orig_san'][0], transformed=test_data_dict['orig_san'][1])
+        dam_dict['orig_san'] = [os_d_cat, os_d_num]
         # Sanitized <-> generated
-        sg_d_cat, sg_d_num = dam(original=dam_dict['san_gen'][0], transformed=dam_dict['san_gen'][1])
-
+        sg_d_cat, sg_d_num = dam(original=test_data_dict['san_gen'][0], transformed=test_data_dict['san_gen'][1])
+        dam_dict['san_gen'] = [sg_d_cat, sg_d_num]
         # Generated <-> Original
-        go_d_cat, go_d_num = dam(original=dam_dict['gen_orig'][0], transformed=dam_dict['gen_orig'][1])
-        
+        go_d_cat, go_d_num = dam(original=test_data_dict['gen_orig'][0], transformed=test_data_dict['gen_orig'][1])
+        dam_dict['gen_orig'] = [go_d_cat, go_d_num]        
 
-        # Visualisation for all three
+        # Visualisation for all three saved under <experiment_name>/dim_reduce/
         os.mkdir(f"{path_to_exp}dim_reduce/")
-        for key in dam_dict:
+        for key in test_data_dict:
             dr = at.DimensionalityReduction()
-            dr.clusters_original_vs_transformed_plots({"original": dam_dict[key][0], "transformed": dam_dict[key][0]},
+            dr.clusters_original_vs_transformed_plots({"original": test_data_dict[key][0], "transformed": test_data_dict[key][0]},
                                                     labels=pd_og_data[20], dimRedFn='umap',
                                                     savefig=path_to_exp+f"dim_reduce/{key}_damage.png")
-            dr.original_vs_transformed_plots({"original": dam_dict[key][0], "transformed": dam_dict[key][1]}, dimRedFn='umap',
+            dr.original_vs_transformed_plots({"original": test_data_dict[key][0], "transformed": test_data_dict[key][1]}, dimRedFn='umap',
                                                 savefig=path_to_exp+f"dim_reduce/{key}_damage.png")
-        
-        # pdb.set_trace()
-
-        # Saving all results:
-
 
         # Then Diversity 
 
         end = time.time()
+
         # Save all in file TODO graphs
         with open(path_to_exp+f"dim_reduce/dam_div_metadata.txt", 'w+') as f:
-            f.write(f"")
+            f.write(f"DAMAGE:\n")
+            f.write(f"Damage from original to sanitized: {dam_dict['orig_san']}\n")
+            f.write(f"Damage from sanitized to generated: {dam_dict['san_gen']}\n")
+            f.write(f"Damage from generated to original: {dam_dict['gen_orig']}\n")
             f.write(f"Time to generate graphs: {(end-start)/60:.2f} minutes")
 
 if __name__ == '__main__':

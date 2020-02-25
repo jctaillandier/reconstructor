@@ -20,7 +20,7 @@ class Diversity:
         """ 
             default diversity function. Data is
             """
-        if isinstance(data, d.Preprocessing):
+        if isinstance(data, d.Encoder):
             data = data.df
         try:
             distance = cdist(data, data, "euclidean").sum(1)
@@ -82,9 +82,9 @@ class Damage:
         return self.numerical_fn(num_orig, num_transformed)
 
     def __call__(self, original, transformed):
-        if isinstance(original, d.Preprocessing):
+        if isinstance(original, d.Encoder):
             original = original.df
-        if isinstance(transformed, d.Preprocessing):
+        if isinstance(transformed, d.Encoder):
             transformed = transformed.df
 
         cat_clm = original.select_dtypes(exclude=["int", "float", "double"]).columns.tolist()
