@@ -1,4 +1,5 @@
 from typing import List
+from Modules import datasets as d
 import pandas as pd
 import os
 import argparse
@@ -10,6 +11,7 @@ def dummy_encode(df: pd.core.frame.DataFrame, cat_cols : List[str] )-> pd.core.f
         column names in pandas and use dummy encoding scheme from
         pandas to encode, then return the new dataframe
 
+        :PARAMS
         :param df: Dataframe to work with
         :param cat_cols: list of columns that needs to be changed 
 
@@ -27,6 +29,48 @@ def dummy_encode(df: pd.core.frame.DataFrame, cat_cols : List[str] )-> pd.core.f
             
         return new_df
 
+def dummy_decode(df: pd.core.frame.DataFrame, cat_cols : List[str] )-> pd.core.frame.DataFrame:
+    '''
+        Un-do the dummy encoding that was made for training. The list passed should be the same as
+        the one passed at encoding time.
+        
+        :PARAMS
+        df: Dataframe to decode
+        cat_cols: list of columns that needs to re-surfaced
+
+        :return same dataframe decode , or same if no encoding found
+    '''
+
+    num_rows_original = df.shape[0]
+    if cat_cols == 0:
+        return df
+    else:
+        new_df = pd.get_dummies(df, columns=cat_cols)
+        num_rows_new = new_df.shape[0]
+        if num_rows_original != num_rows_new:
+            print(f"\n There might to have been data loss during encoding. \n Row counts do not match \n")
+            
+        return new_df
+    
+def encode(data_path: str)-> d.Encoder:
+    '''
+        Encodes the same way gansan does. It returns an object that contains the meta data
+        about the encoding and will be need to call decode() and retrieve original columns
+        
+        :PARAMS
+        data_path: Path to the original data to be encoded, and where .prm is situated
+        
+        return: d.Preprocessing obj; obj.df returns data in dataframe, 
+                                        obj.inverse_transform() to reverse encoding
+    '''
+
+    d_i = d.Encoder(data_path)
+    d_i.load_parameters(prmPath='./data/')
+    d_i.transform()
+    
+    return d_i
+    
+    
 def find_cat(df: pd.core.frame.DataFrame) -> str:
     '''
         Iterates through columns to find ones that contains strings
@@ -71,6 +115,7 @@ def check_dir_path(path_to_check: str) -> str:
         If it is, it appends a number to the end and checks again 
         until no directory with such name exists
 
+        :PARAMS
         path_to_check: str The path to location to check
 
         return: str New path with which os.mkdir can be called

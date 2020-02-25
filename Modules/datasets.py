@@ -8,7 +8,7 @@ from sklearn.preprocessing import MinMaxScaler
 import pickle
 
 
-class Preprocessing:
+class Encoder:
     """
     Class to handle all the preprocessing steps before passing the dataset to pytorch
     """
@@ -227,7 +227,7 @@ class Preprocessing:
 
     def inverse_transform(self):
         """
-        Recover the original data
+            Recover the original data
         """
         excluded = pd.DataFrame()
         # if self.prep_included is not None and len(self.prep_included) > 0:
@@ -281,7 +281,7 @@ class ProportionsMatching:
         mask = data[feature_name] == feature_value
 
 
-class FairnessPreprocessing(Preprocessing):
+class FairnessPreprocessing(Encoder):
     """
     Extension of preprocessing class to the fairness preprocessing
     """
@@ -338,7 +338,7 @@ class TorchGeneralDataset(data.Dataset):
         :param noise: Number of nodes to use for the noise
         :param noise_fn: Torch function to use to generate noise
         """
-        if isinstance(csv, Preprocessing):
+        if isinstance(csv, Encoder):
             df = csv.df
         elif isinstance(csv, pd.DataFrame):
             df = csv

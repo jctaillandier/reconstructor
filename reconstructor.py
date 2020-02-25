@@ -134,38 +134,23 @@ class PreProcessing:
         df_labels = pd.read_csv(label_path)
         n_test = int(len(df2.iloc[:,0])*percent_train_set)
 
-        if df2.shape != df_labels.shape:
-            print(df2.shape)
-            print(df_labels.shape)
-            raise ValueError("The labels csv and data csv don't have the same shape.")
-        
-        data_cat_list = utils.find_cat(df2)
-        label_cat_list = utils.find_cat(df_labels)
-        
-        if data_cat_list != label_cat_list:
-            raise ValueError('The categorical data columns found in your data doesnt match the ones found in your labels.\n That means the AE will learn on data that is encoded differently from the labels it tries to immitate.') 
-       
-        
-        if len(data_cat_list) > 0:
-            print(f"Categorical variable found. Running Pandas dummy_variable encoding on {len(data_cat_list)} columns \n")
-            df_data = utils.dummy_encode(df2, data_cat_list)
-            df_labels = utils.dummy_encode(df_labels, label_cat_list)
-            print(f"Saving encoded dataset under {import_path[:-4]}_NoCat.csv \n")
-            df_data.to_csv(f"{import_path[:-4]}_NoCat.csv", index=False)
-            
-            df_data, df_labels = utils.adjust_enc_errors(df_data, df_labels)
-            if df_data.shape != df_labels.shape:
-                print(df_data.shape)
-                print(df_labels.shape)
-                raise ValueError("The labels csv and data post-encoding don't have the same shape.")
-                
-            df_labels.to_csv(f"{label_path[:-4]}_NoCat.csv", index=False)
-            self.dataloader = My_dataLoader(self.batchSize, f"{import_path[:-4]}_NoCat.csv", f"{label_path[:-4]}_NoCat.csv", n_test, "income", test_batch_size)
-            self.data_dataframe = df_data
+        #Make encoding object to transform categorical
+        self.data_pp = utils.encode(import_path)
+        self.labels_pp = utils.encode(label_path)
+        print(f"Saving output dataset under {import_path[:-4]}_NoCat.csv \n")
+        self.data_pp.df.to_csv(f"{import_path[:-4]}_NoCat.csv", index=False)
+        self.labels_pp.df.to_csv(f"{label_path[:-4]}_NoCat.csv", index=False)
 
-        else: # no categorical vars found
-            self.dataloader = My_dataLoader(self.batchSize, import_path, n_test, "income", test_batch_size)
-            self.data_dataframe = df_data
+        # MAke sure post processing label and data are of same shape
+        if self.data_pp.df.shape != self.data_pp.df.shape:
+            print(self.df_data.shape)
+            print(self.df_labels.shape)
+            raise ValueError("The labels csv and data post-encoding don't have the same shape.")
+
+        self.dataloader = My_dataLoader(batchSize, f"{import_path[:-4]}_NoCat.csv", f"{label_path[:-4]}_NoCat.csv", n_test, "income", test_batch_size)
+
+        self.data_dataframe = self.data_pp.df
+        self.labels_dataframe = self.labels_pp.df
 
 
 class Autoencoder(nn.Module):
@@ -232,6 +217,9 @@ def test(model, test_loader, test_loss_fn, last_epoch=False):
             inputs, target = inputs.to(device), target.to(device)
             
             if last_epoch == True:
+                ###
+                # Need to decode dummy vars
+                ###
                 og_data = inputs.tolist()
                 with open(path_to_exp+f"{str.replace(time.ctime()[4:-8], ' ', '_')}-original_testset.csv", 'w', newline="") as f:
                     writer = csv.writer(f)
@@ -243,6 +231,9 @@ def test(model, test_loader, test_loss_fn, last_epoch=False):
             output = model(inputs.float())
 
             if last_epoch == True:
+                ###
+                # Need to decode dummy vars
+                ###
                 gen_data = output.tolist()
                 with open(path_to_exp+f"{str.replace(time.ctime()[4:-8], ' ', '_')}-generated_testset.csv", 'w', newline="") as f:
                     writer = csv.writer(f)
@@ -289,16 +280,21 @@ class Training:
         for epoch in range(self.num_epochs):
             print(f"Epoch {epoch+1} of {self.num_epochs} running...")
 
+            # Iterate on train set with SGD (adam)
             batch_ave_tr_loss = train(self.model,self.experiment_x.dataloader.train_loader, self.optimizer, self.train_loss)
             self.ave_train_loss.append(batch_ave_tr_loss.cpu().numpy().item())
+
+            # check if last epoch, in order to generate data
             last = False
-            if epoch+1 == self.num_epochs: # then save the test batch input and output for metrics
+            if epoch+1 == self.num_epochs: 
                 last = True
+
+            # Check test set metrics (+ generate data if last epoch )
             loss, san_data, gen_data = test(self.model, self.experiment_x.dataloader.test_loader, self.test_loss_fn, last)
 
             print(f"Epoch {epoch+1} complete. Test Loss: {loss:.4f} \n")      
             self.test_accuracy.append(loss/len(self.experiment_x.dataloader.test_loader.dataset))
-        if last:
+        if last: # redundant statement
             self.san_data = san_data
             self.gen_data = gen_data
 
@@ -311,6 +307,7 @@ class Training:
         end = time.time()
         print(f"Training on {self.num_epochs} epochs completed in {(end-start)/60} minutes.")
 
+        # Save model meta data in txt file
         with open(path_to_exp+f"{str.replace(time.ctime(), ' ', '_')}-{a}.txt", 'w+') as f:
             f.write(f"Epochs: {self.num_epochs} \n")
             f.write(f"Learning Rate: {self.learning_rate} \n")
@@ -332,7 +329,7 @@ class Training:
 
             
         '''
-
+        start = time.time()
         pd_og_data = pd.DataFrame(self.experiment_x.dataloader.telabels.numpy())
         pd_san_data = pd.DataFrame(self.san_data)
         pd_gen_data = pd.DataFrame(self.gen_data)
@@ -348,10 +345,10 @@ class Training:
         os_d_cat, os_d_num = dam(original=dam_dict['orig_san'][0], transformed=dam_dict['orig_san'][1])
 
         # Sanitized <-> generated
-        sg_d_cat, sg_d_num =dam(original=dam_dict['san_gen'][0], transformed=dam_dict['san_gen'][1])
+        sg_d_cat, sg_d_num = dam(original=dam_dict['san_gen'][0], transformed=dam_dict['san_gen'][1])
 
         # Generated <-> Original
-        go_d_cat, go_d_num =dam(original=dam_dict['gen_orig'][0], transformed=dam_dict['gen_orig'][1])
+        go_d_cat, go_d_num = dam(original=dam_dict['gen_orig'][0], transformed=dam_dict['gen_orig'][1])
         
 
         # Visualisation for all three
@@ -359,9 +356,10 @@ class Training:
         for key in dam_dict:
             dr = at.DimensionalityReduction()
             dr.clusters_original_vs_transformed_plots({"original": dam_dict[key][0], "transformed": dam_dict[key][0]},
-                                                    labels=pd_og_data[20],
+                                                    labels=pd_og_data[20], dimRedFn='umap',
                                                     savefig=path_to_exp+f"dim_reduce/{key}_damage.png")
-            dr.original_vs_transformed_plots({"original": dam_dict[key][0], "transformed": dam_dict[key][1]}, savefig=path_to_exp+f"dim_reduce/{key}_damage.png")
+            dr.original_vs_transformed_plots({"original": dam_dict[key][0], "transformed": dam_dict[key][1]}, dimRedFn='umap',
+                                                savefig=path_to_exp+f"dim_reduce/{key}_damage.png")
         
         # pdb.set_trace()
 
@@ -370,10 +368,11 @@ class Training:
 
         # Then Diversity 
 
-        
+        end = time.time()
         # Save all in file TODO graphs
-        with open(path_to_exp+f"_dam_div.txt", 'w+') as f:
+        with open(path_to_exp+f"dim_reduce/dam_div_metadata.txt", 'w+') as f:
             f.write(f"")
+            f.write(f"Time to generate graphs: {(end-start)/60:.2f} minutes")
 
 if __name__ == '__main__':
     experiment = PreProcessing(params_file)

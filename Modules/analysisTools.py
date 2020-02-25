@@ -2,6 +2,7 @@ import numpy as np
 from Modules import datasets as d
 from Modules import Visualisation
 from scipy.spatial.distance import cdist
+import pandas as pd
 
 
 class Diversity: 
@@ -15,8 +16,10 @@ class Diversity:
         :param diversity_fn: function to compute diversity with. If None, will use the default function """
         self.diversity_fn = diversity_fn if diversity_fn is not None else self.default_diversity
 
-    def default_diversity(self, data, suffix=None):
-        """ default diversity function."""
+    def default_diversity(self, data: pd.core.frame.DataFrame, suffix=None):
+        """ 
+            default diversity function. Data is
+            """
         if isinstance(data, d.Preprocessing):
             data = data.df
         try:
@@ -51,7 +54,7 @@ class Damage:
         :param numerical_fn: function used to compute damage for numerical attributes """
         self.numerical_fn = numerical_fn if numerical_fn is not None else self.relative_change
 
-    def relative_change(self, original, transformed):
+    def relative_change(self, original: pd.core.frame.DataFrame, transformed: pd.core.frame.DataFrame):
         """ Compute the relative change between the two given sets.
         Formula: |original - transformed| / f(original, transformed); with f(o,t) = 1/2 * (|o| + |t|) """
 
@@ -69,7 +72,7 @@ class Damage:
             damage.update({c: [(cat_orig[c].astype("object") == cat_transformed[c]).mean()]})
         return damage
 
-    def damage_numerical(self, num_orig, num_transformed):
+    def damage_numerical(self, num_orig: pd.core.frame.DataFrame, num_transformed: pd.core.frame.DataFrame):
         """
         Compute the damage on numerical attributes
         :param num_orig: numerical attributes original
