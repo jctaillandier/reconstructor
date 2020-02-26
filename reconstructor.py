@@ -331,13 +331,19 @@ class Training:
         start = time.time()
         # a = pd.DataFrame(self.experiment_x.dataloader.telabels.numpy(), columns=self.experiment_x.labels_dataframe.columns)
         pd_og_data = self.experiment_x.labels_pp.__from_dummies__(ext_data=self.experiment_x.labels_pp.df).iloc[self.experiment_x.dataloader.train_size:,:]
-        pd_og_data.reset_index(drop=True, inplace=True)
+        pd_og_data.reset_index(drop=True,inplace=True)
         pd_san_data = self.san_data
         pd_gen_data = self.gen_data
         
         # Damage First / attr
         dam = at.Damage()
         dam_dict = {}
+
+        test_data_dict = {}
+        test_data_dict['orig_san'] = [pd_og_data, pd_san_data]
+        test_data_dict['san_gen'] = [pd_san_data, pd_gen_data]
+        test_data_dict['gen_orig'] = [pd_gen_data, pd_og_data] 
+
         
         # Original <-> Sanitized
         os_d_cat, os_d_num = dam(original=pd_og_data, transformed=pd_san_data)
@@ -349,8 +355,21 @@ class Training:
         go_d_cat, go_d_num = dam(original=pd_gen_data, transformed=pd_og_data)
         dam_dict['gen_orig'] = [go_d_cat, go_d_num]        
 
-        pdb.set_trace()
-        utils.three_way_viz(pd_og_data, pd_san_data, pd_gen_data,path_to_exp,'pca')
+        # Visualisation for all three saved under <experiment_name>/dim_reduce/
+        os.mkdir(f"{path_to_exp}dim_reduce/")
+        for key in test_data_dict:
+            dr = at.DimensionalityReduction()
+            dr.clusters_original_vs_transformed_plots({"original": test_data_dict[key][0], "transformed": test_data_dict[key][0]},
+                                                    labels=pd_og_data.iloc[:,5], dimRedFn='pca',
+                                                    savefig=path_to_exp+f"dim_reduce/{key}_damage.png")
+            dr.original_vs_transformed_plots({"original": test_data_dict[key][0], "transformed": test_data_dict[key][1]}, dimRedFn='pca',
+                                                savefig=path_to_exp+f"dim_reduce/{key}_damage.png")
+
+        # Then Diversity 
+        for key in test_data_dict:
+            div = at.Diversity()
+            diversity = div(test_data_dict[key][0], f"original_{key.split('_')[0]}")
+            diversity.update(div(test_data_dict[key][1], f"transformed_{key.split('_')[1]}"))
 
         end = time.time()
 
