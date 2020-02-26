@@ -78,4 +78,3 @@ def tensor_to_df(tensor: torch.Tensor, headers: List[str]) -> pd.DataFrame:
 
     
     return pd.DataFrame (tensor.tolist(), columns=headers)
-

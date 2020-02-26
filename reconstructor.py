@@ -347,22 +347,22 @@ class Training:
         
         # Original <-> Sanitized
         os_d_cat, os_d_num = dam(original=pd_og_data, transformed=pd_san_data)
-        dam_dict['orig_san'] = [os_d_cat, os_d_num] # output is dict per columns or if numerical, returns full dataset, with data on each deviation line by line
+        dam_dict['original_sanitized'] = [os_d_cat, os_d_num] # output is dict per columns or if numerical, returns full dataset, with data on each deviation line by line
         # Sanitized <-> generated
         sg_d_cat, sg_d_num = dam(original=pd_san_data, transformed=pd_gen_data)
-        dam_dict['san_gen'] = [sg_d_cat, sg_d_num]
+        dam_dict['sanitized_generated'] = [sg_d_cat, sg_d_num]
         # Generated <-> Original
         go_d_cat, go_d_num = dam(original=pd_gen_data, transformed=pd_og_data)
-        dam_dict['gen_orig'] = [go_d_cat, go_d_num]        
+        dam_dict['generated_original'] = [go_d_cat, go_d_num]        
 
         # Visualisation for all three saved under <experiment_name>/dim_reduce/
         os.mkdir(f"{path_to_exp}dim_reduce/")
         for key in test_data_dict:
             dr = at.DimensionalityReduction()
-            dr.clusters_original_vs_transformed_plots({"original": test_data_dict[key][0], "transformed": test_data_dict[key][0]},
-                                                    labels=pd_og_data.iloc[:,5], dimRedFn='pca',
+            dr.clusters_original_vs_transformed_plots({key.split('_')[0]: test_data_dict[key][0], key.split('_')[1]: test_data_dict[key][1]},
+                                                    labels=pd_og_data.iloc[:,5], dimRedFn='umap',
                                                     savefig=path_to_exp+f"dim_reduce/{key}_damage.png")
-            dr.original_vs_transformed_plots({"original": test_data_dict[key][0], "transformed": test_data_dict[key][1]}, dimRedFn='pca',
+            dr.original_vs_transformed_plots({key.split('_')[0]: test_data_dict[key][0], key.split('_')[1]: test_data_dict[key][1]}, dimRedFn='umap',
                                                 savefig=path_to_exp+f"dim_reduce/{key}_damage.png")
 
         # Then Diversity 
