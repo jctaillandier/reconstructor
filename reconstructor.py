@@ -255,6 +255,7 @@ class Training:
         self.learning_rate = experiment_x.params['model_params']['learning_rate']['value']
         self.experiment_x = experiment_x
         self.num_epochs = int(experiment_x.params['model_params']['num_epochs']['value'])
+        self.dim_red = experiment_x.params['post_processing']['dim_reduction']['value']
 
         self.in_dim = experiment_x.dataloader.trdata.shape[1]
         self.out_dim = experiment_x.dataloader.trlabels.shape[1]
@@ -360,9 +361,9 @@ class Training:
         for key in test_data_dict:
             dr = at.DimensionalityReduction()
             dr.clusters_original_vs_transformed_plots({key.split('_')[0]: test_data_dict[key][0], key.split('_')[1]: test_data_dict[key][1]},
-                                                    labels=pd_og_data.iloc[:,5], dimRedFn='umap',
+                                                    labels=pd_og_data.iloc[:,5], dimRedFn=self.dim_red,
                                                     savefig=path_to_exp+f"dim_reduce/{key}_damage.png")
-            dr.original_vs_transformed_plots({key.split('_')[0]: test_data_dict[key][0], key.split('_')[1]: test_data_dict[key][1]}, dimRedFn='umap',
+            dr.original_vs_transformed_plots({key.split('_')[0]: test_data_dict[key][0], key.split('_')[1]: test_data_dict[key][1]}, dimRedFn=self.dim_red,
                                                 savefig=path_to_exp+f"dim_reduce/{key}_damage.png")
 
         # Then Diversity 
