@@ -200,7 +200,7 @@ class Visualize:
             reduction_fn = self.umap
         elif "tsne" in dimRedFn.lower():
             reduction_fn = self.tsne
-        elif "pca" in dimRedFn.lower():
+        elif "pca" in dimRedFn.lower(): ###
             reduction_fn = self.pca
         elif "svd" in dimRedFn.lower():
             reduction_fn = self.svd

@@ -19,9 +19,13 @@ model_params:
             value: 0.0001
             desc: "Learning rate `lr` for model training"
         num_epochs:
-            value: 10
+            value: 1
             desc: "Number of epochs to train the model."
         weight_decay:
             value: 0
             desc: "Number of epochs to train the model."
+post_processing:
+        dim_reduction:
+            value: 'pca'
+            desc: 'Choose from pca, tsne, umap or svp. Where pca is quicker to compute'
         

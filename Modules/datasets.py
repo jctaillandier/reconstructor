@@ -114,11 +114,15 @@ class Encoder:
         self.num_clm = num_clm
         self.int_clm = self.df.select_dtypes(include=["int"]).columns.tolist()
 
-    def __from_dummies__(self, prefix_sep='='):
+    def __from_dummies__(self, prefix_sep='=', **kwargs):
         """
-        Convert encoded columns into original ones
+            Convert encoded columns into original ones
         """
-        data = self.df
+        if 'ext_data' in kwargs:
+            data = kwargs['ext_data']
+        else:
+            data = self.df
+
         categories = self.cat_clm
         cat_was_num = self.categorical_was_numeric
         out = data.copy()
@@ -129,8 +133,10 @@ class Encoder:
             out.drop(cols, axis=1, inplace=True)
             if l in cat_was_num.keys():
                 out[l] = out[l].astype(cat_was_num[l])
-
-        self.df = out
+        if 'ext_data' in kwargs:
+            return out
+        else:
+            self.df = out
 
     def __squash_in_range__(self):
         """

@@ -1,5 +1,6 @@
 from typing import List
 from Modules import datasets as d
+from Modules import analysisTools as at
 import pandas as pd
 import os
 import torch
@@ -39,7 +40,7 @@ def check_dir_path(path_to_check: str) -> str:
     '''
     new_path = path_to_check
     if os.path.isdir(path_to_check):
-        print("Experiment with name: \'{}\' already exists. Appending int to folder name. \n ".format(path_to_check))
+        print("Experiment with name: \'{}\' already exists. Appending int to folder name. ".format(path_to_check))
         if os.path.isdir(path_to_check):
             expand = 1
             while True:
@@ -49,7 +50,7 @@ def check_dir_path(path_to_check: str) -> str:
                     continue
                 else:
                     break
-            print(f"Experiment name: {new_path} \n \n ")
+            print(f"Experiment path: {new_path} \n \n ")
     return new_path
 
 def parse_arguments(parser):
@@ -77,3 +78,58 @@ def tensor_to_df(tensor: torch.Tensor, headers: List[str]) -> pd.DataFrame:
 
     
     return pd.DataFrame (tensor.tolist(), columns=headers)
+
+def three_way_viz(df1: pd.core.frame.DataFrame, df2: pd.core.frame.DataFrame, df3: pd.core.frame.DataFrame, path_to_exp: str, red:str='pca'):
+    '''
+        I haven't paid enough attention in my data structure class, and I can't find a way 
+            to make this 3 way iteration of all combination with dataframes without bugs
+            I decided to hide this in utils, since I am ashamed
+        Calculates Damage and Diversity and saves output in experimetn folder
+
+        :PARAMS
+        3X df_x: the three dataframe you want to compare
+        path_to_exp: path to base of experiment, leading to ...experiment/<exp_name>/
+        red: reduction chosen, can choose between pca, tsne, umap or svp    
+    '''
+
+    # Damage 
+    dr = at.DimensionalityReduction()
+    dr.clusters_original_vs_transformed_plots({"original": df1, "transformed": df2},
+                                            labels=df1[20], dimRedFn=red,
+                                            savefig=path_to_exp+f"dim_reduce/og_san_damage.png")
+    dr.original_vs_transformed_plots({"original": df1, "transformed": df2}, dimRedFn=red,
+                                        savefig=path_to_exp+f"dim_reduce/og_san_damage.png")
+
+    # Then Diversity 
+    div = at.Diversity()
+    diversity = div(test_data_dict[key][0], f"original_og_san")
+    diversity.update(div(test_data_dict[key][1], f"transformed_og_san"))
+
+
+        # Damage 
+    dr = at.DimensionalityReduction()
+    dr.clusters_original_vs_transformed_plots({"original": df2, "transformed": df3},
+                                            labels=df2[20], dimRedFn=red,
+                                            savefig=path_to_exp+f"dim_reduce/san_gen_damage.png")
+    dr.original_vs_transformed_plots({"original": df2, "transformed": df3}, dimRedFn=red,
+                                        savefig=path_to_exp+f"dim_reduce/san_gen_damage.png")
+
+    # Then Diversity 
+    div = at.Diversity()
+    diversity = div(df1, f"original_san")
+    diversity.update(div(df2, f"transformed_gen"))
+
+
+
+        # Damage 
+    dr = at.DimensionalityReduction()
+    dr.clusters_original_vs_transformed_plots({"original": df3, "transformed": df1},
+                                            labels=df3[20], dimRedFn=red,
+                                            savefig=path_to_exp+f"dim_reduce/gen_og_damage.png")
+    dr.original_vs_transformed_plots({"original": df3, "transformed": df1}, dimRedFn=red,
+                                        savefig=path_to_exp+f"dim_reduce/gen_of_damage.png")
+
+    # Then Diversity 
+    div = at.Diversity()
+    diversity = div(test_data_dict[key][0], f"original_gen")
+    diversity.update(div(test_data_dict[key][1], f"transformed_original"))

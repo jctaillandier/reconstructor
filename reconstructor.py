@@ -82,11 +82,11 @@ class My_dataLoader:
         df_label = pd.read_csv(label_path)
         
         a = df_data.values
-        b = df_label.values
+        self.b = df_label.values
         self.trdata = torch.tensor(a[:self.train_size,:]) # where data is 2d [D_train_size x features]
-        self.trlabels = torch.tensor(b[:self.train_size,:]) # also has too be 2d
+        self.trlabels = torch.tensor(self.b[:self.train_size,:]) # also has too be 2d
         self.tedata = torch.tensor(a[self.train_size:,:]) # where data is 2d [D_train_size x features]
-        self.telabels = torch.tensor(b[self.train_size:,:]) # also has too be 2d
+        self.telabels = torch.tensor(self.b[self.train_size:,:]) # also has too be 2d
         
         self.train_dataset = torch.utils.data.TensorDataset(self.trdata, self.trlabels)
         self.test_dataset = torch.utils.data.TensorDataset(self.tedata, self.telabels)
@@ -221,19 +221,23 @@ def test(model: torch.nn.Module, experiment: PreProcessing, test_loss_fn:torch.o
             inputs, target = inputs.to(device), target.to(device)
             
             if last_epoch == True:
-                # Decode dummy vars
-                experiment.data_pp.inverse_transform()
-                san_data = experiment.data_pp.df
-                experiment.data_pp.df.to_csv(path_to_exp+f"{str.replace(time.ctime()[4:-8], ' ', '_')}-original_testset.csv", index=False)
 
+                np_inputs = inputs.numpy()
+                headers = experiment.data_pp.encoded_features_order
+                input_df = pd.DataFrame(np_inputs, columns=headers)
+                san_data = experiment.data_pp.__from_dummies__(ext_data=input_df)
             else:
                 san_data = []
 
             output = model(inputs.float())
 
             if last_epoch == True:
-                # decode dummy vars
-
+                # decode dummy vars from model-generated data 
+                #       borrowing inv_transform function, also need to add headers
+                np_output = output.numpy()
+                headers = experiment.data_pp.encoded_features_order
+                output_df = pd.DataFrame(np_output, columns=headers)
+                gen_data = experiment.data_pp.__from_dummies__(ext_data=output_df)
 
             else:
                 gen_data = []
@@ -242,7 +246,7 @@ def test(model: torch.nn.Module, experiment: PreProcessing, test_loss_fn:torch.o
             test_loss += test_loss_fn(output.float(), target.float()).item() 
             batch_ave += test_loss/test_size
     
-    return batch_ave, san_data, 'gen_data' # this needs to be decoded, but we cant directyl with d.de
+    return batch_ave, san_data, gen_data # this needs to be decoded, but we cant directyl with d.de
 
 
 class Training:
@@ -321,45 +325,32 @@ class Training:
         '''
             This will calculate (1) diversity within generated dataset, 
                 and the (2) damage the generated dataset has
-                    Those will be compared to both the original and sanitized
-
-            
+                    Those will be compared to both the original and sanitized            
         '''
+        # Need to created a Encoder object with original data justin order to have matching columns when calculating damage and Diversity
         start = time.time()
-        pd_og_data = self.experiment_x.df_labels
+        # a = pd.DataFrame(self.experiment_x.dataloader.telabels.numpy(), columns=self.experiment_x.labels_dataframe.columns)
+        pd_og_data = self.experiment_x.labels_pp.__from_dummies__(ext_data=self.experiment_x.labels_pp.df).iloc[self.experiment_x.dataloader.train_size:,:]
+        pd_og_data.reset_index(drop=True, inplace=True)
         pd_san_data = self.san_data
         pd_gen_data = self.gen_data
-
-        test_data_dict = {}
-        test_data_dict['orig_san'] = [pd_og_data, pd_san_data]
-        test_data_dict['san_gen'] = [pd_san_data, pd_gen_data]
-        test_data_dict['gen_orig'] = [pd_gen_data, pd_og_data]
-
-        # Damage First
+        
+        # Damage First / attr
         dam = at.Damage()
         dam_dict = {}
-        pdb.set_trace()
+        
         # Original <-> Sanitized
-        os_d_cat, os_d_num = dam(original=test_data_dict['orig_san'][0], transformed=test_data_dict['orig_san'][1])
-        dam_dict['orig_san'] = [os_d_cat, os_d_num]
+        os_d_cat, os_d_num = dam(original=pd_og_data, transformed=pd_san_data)
+        dam_dict['orig_san'] = [os_d_cat, os_d_num] # output is dict per columns or if numerical, returns full dataset, with data on each deviation line by line
         # Sanitized <-> generated
-        sg_d_cat, sg_d_num = dam(original=test_data_dict['san_gen'][0], transformed=test_data_dict['san_gen'][1])
+        sg_d_cat, sg_d_num = dam(original=pd_san_data, transformed=pd_gen_data)
         dam_dict['san_gen'] = [sg_d_cat, sg_d_num]
         # Generated <-> Original
-        go_d_cat, go_d_num = dam(original=test_data_dict['gen_orig'][0], transformed=test_data_dict['gen_orig'][1])
+        go_d_cat, go_d_num = dam(original=pd_gen_data, transformed=pd_og_data)
         dam_dict['gen_orig'] = [go_d_cat, go_d_num]        
 
-        # Visualisation for all three saved under <experiment_name>/dim_reduce/
-        os.mkdir(f"{path_to_exp}dim_reduce/")
-        for key in test_data_dict:
-            dr = at.DimensionalityReduction()
-            dr.clusters_original_vs_transformed_plots({"original": test_data_dict[key][0], "transformed": test_data_dict[key][0]},
-                                                    labels=pd_og_data[20], dimRedFn='umap',
-                                                    savefig=path_to_exp+f"dim_reduce/{key}_damage.png")
-            dr.original_vs_transformed_plots({"original": test_data_dict[key][0], "transformed": test_data_dict[key][1]}, dimRedFn='umap',
-                                                savefig=path_to_exp+f"dim_reduce/{key}_damage.png")
-
-        # Then Diversity 
+        pdb.set_trace()
+        utils.three_way_viz(pd_og_data, pd_san_data, pd_gen_data,path_to_exp,'pca')
 
         end = time.time()
 
@@ -373,7 +364,7 @@ class Training:
 
 if __name__ == '__main__':
     experiment = PreProcessing(params_file)
-    # pdb.set_trace()
+
     my_training = Training(experiment)
     my_training.train_model()
 
