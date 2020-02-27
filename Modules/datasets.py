@@ -8,6 +8,30 @@ from sklearn.preprocessing import MinMaxScaler
 import pickle
 
 
+
+def rm_qmark(df_data: pd.DataFrame, rm_row=True) -> pd.DataFrame:
+    '''
+        removes question mark string value from dataframe and either delete the row or replaces value with None type values.
+        It first moves it in numpy array for faster computation.
+        Especially usefull for Adult Dataset
+
+        :PARAMS
+        self explanatory
+        rm_rows: will remove whole row if True. Else will change value for None
+    '''
+    a = df_data.to_numpy()
+    headers = df_data.columns
+    for row_index, row in enumerate(a):
+        for col_index, data in enumerate(row):
+            if data =='?':
+                if rm_row==True:
+                    np.delete(a,[row_index],axis=0)
+                else:
+                    a[row_index,col_index]= None 
+                
+    newdf = pd.DataFrame(a, columns=headers)
+    return newdf
+
 class Encoder:
     """
     Class to handle all the preprocessing steps before passing the dataset to pytorch
@@ -122,7 +146,7 @@ class Encoder:
             data = kwargs['ext_data']
         else:
             data = self.df
-
+        data = rm_qmark(data)
         categories = self.cat_clm
         cat_was_num = self.categorical_was_numeric
         out = data.copy()
@@ -389,4 +413,3 @@ class TorchGeneralDataset(data.Dataset):
         xn = self.cat_noise(x)
         sample = {'x': x, "xn": xn, 'y': self.y[index], "yArg": self.y[index].argmax(0)}
         return sample
-

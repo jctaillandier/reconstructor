@@ -2,29 +2,10 @@ from typing import List
 from Modules import datasets as d
 from Modules import analysisTools as at
 import pandas as pd
+import numpy as np
 import os
 import torch
 import argparse
-
-
-    
-def encode(data_path: str)-> d.Encoder:
-    '''
-        Encodes the same way gansan does. It returns an object that contains the meta data
-        about the encoding and will be need to call decode() and retrieve original columns
-        
-        :PARAMS
-        data_path: Path to the original data to be encoded, and where .prm is situated
-        
-        return: d.Preprocessing obj; obj.df returns data in dataframe, 
-                                        obj.inverse_transform() to reverse encoding
-    '''
-
-    d_i = d.Encoder(data_path)
-    d_i.load_parameters(prmPath='./data/')
-    d_i.transform()
-    
-    return d_i
     
 
 def check_dir_path(path_to_check: str) -> str:
@@ -78,3 +59,45 @@ def tensor_to_df(tensor: torch.Tensor, headers: List[str]) -> pd.DataFrame:
 
     
     return pd.DataFrame (tensor.tolist(), columns=headers)
+
+def rm_qmark(df_data: pd.DataFrame, rm_row=True) -> pd.DataFrame:
+    '''
+        removes question mark string value from dataframe and either delete the row or replaces value with None type values.
+        It first moves it in numpy array for faster computation.
+        Especially usefull for Adult Dataset
+
+        :PARAMS
+        self explanatory
+        rm_rows: will remove whole row if True. Else will change value for None
+    '''
+    a = df_data.to_numpy()
+    headers = df_data.columns
+    for row_index, row in enumerate(a):
+        for col_index, data in enumerate(row):
+            if data =='?':
+                if rm_row==True:
+                    np.delete(a,[row_index],axis=0)
+                else:
+                    a[row_index,col_index]= None 
+                
+    newdf = pd.DataFrame(a, columns=headers)
+    return newdf
+
+# def encode(data_path: str)-> Encoder:
+#     '''
+#         Encodes the same way gansan does. It returns an object that contains the meta data
+#         about the encoding and will be need to call decode() and retrieve original columns
+        
+#         :PARAMS
+#         data_path: Path to the original data to be encoded, and where .prm is situated
+        
+#         return: d.Preprocessing obj; obj.df returns data in dataframe, 
+#                                         obj.inverse_transform() to reverse encoding
+#     '''
+
+#     d_i = d.Encoder(data_path)
+#     d.save_parameters(path_to_exp)
+#     d_i.load_parameters(prmPath='./data/')
+#     d_i.transform()
+    
+#     return d_i
