@@ -98,12 +98,12 @@ class PreProcessing:
 
         #Make encoding object to transform categorical
         self.data_pp = d.Encoder(import_path)
-        self.data_pp.transform()
+        self.data_pp.fit_transform()
         self.data_pp.save_parameters(path_to_exp, prmFile="parameters_data.prm")
 
         # For Label (orginal_images)
         self.labels_pp = d.Encoder(import_path)
-        self.labels_pp.transform()
+        self.labels_pp.fit_transform()
         self.labels_pp.save_parameters(path_to_exp, prmFile="parameters_labels.prm")
         
         
@@ -379,15 +379,14 @@ class Training:
             dr.original_vs_transformed_plots({key.split('_')[0]: test_data_dict[key][0], key.split('_')[1]: test_data_dict[key][1]}, dimRedFn=self.dim_red, savefig=path_to_exp+f"dim_reduce/{key}_damage.png")
 
             # Then Diversity 
-            div = at.Diversity()
-            import pdb; pdb.set_trace()
-            diversity = div(test_data_dict[key][0], f"original_{key.split('_')[0]}")
-            diversity.update(div(test_data_dict[key][1], f"transformed_{key.split('_')[1]}"))
-            diversities.append(diversity)
+            # div = at.Diversity()
+            # diversity = div(test_data_dict[key][0], f"original_{key.split('_')[0]}")
+            # diversity.update(div(test_data_dict[key][1], f"transformed_{key.split('_')[1]}"))
+            # diversities.append(diversity)
 
-            saver = r.DiversityDamageResults(resultDir=path_to_exp+f"dim_reduce/", result_file=s_fn(f"DiversityDamage_{key}"),  num_damage=s_fn(f"numerical_damage_{key}"), overwrite=p.ResetAllMetrics)
+            # saver = r.DiversityDamageResults(resultDir=path_to_exp+f"dim_reduce/", result_file=s_fn(f"DiversityDamage_{key}"),  num_damage=s_fn(f"numerical_damage_{key}"), overwrite=p.ResetAllMetrics)
 
-            saver.add_results(diversity=diversity, damage_categorical=d_cat, damage_numerical=d_num, epoch=self.num_epochs, alpha_=0)
+            # saver.add_results(diversity=diversity, damage_categorical=d_cat, damage_numerical=d_num, epoch=self.num_epochs, alpha_=0)
                 
         end = time.time()
         # Save all in file TODO graphs
