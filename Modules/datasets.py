@@ -146,7 +146,7 @@ class Encoder:
             data = kwargs['ext_data']
         else:
             data = self.df
-        data = rm_qmark(data)
+        # data = rm_qmark(data)
         categories = self.cat_clm
         cat_was_num = self.categorical_was_numeric
         out = data.copy()

@@ -41,13 +41,13 @@ print(f"\n *** \n Currently running on {device}\n *** \n")
 
 # parser = argparse.ArgumentParser()
 # args = utils. parse_arguments(parser)
-
+a = 'adult'
 if not sys.argv:
     raise EnvironmentError("Not enough parameters added to command: Need (1) paramsfile.yaml and (2) experiment_name")
 args = sys.argv[1:]
 
 if args[0][-5:] != '.yaml':
-    raise ValueError("first argument needs to be the parmeters file in yaml format")
+    raise ValueError("first argument needs to be the parameters file in yaml format")
 params_file = args[0]
 
 if args[1]:
@@ -56,10 +56,15 @@ else:
     print("No name given to experiment.")
     exp_name = "no-name"
 
+if len(args)>2 and args[2] == 'False':
+    clean_data = False
+else:
+    clean_data = True
+
 path_to_exp = utils.check_dir_path(f'./experiments/{exp_name}/')
 os.mkdir(path_to_exp)
-
-
+model_saved = path_to_exp+'models/'
+os.mkdir(model_saved)
 # Data import & Pre-processing
 
 class PreProcessing:
@@ -84,14 +89,15 @@ class PreProcessing:
 
 
 
-        df = pd.read_csv(import_path)
-        df_labels = pd.read_csv(label_path)
+        df2 = pd.read_csv(import_path)
+        self.df_labels = pd.read_csv(label_path)
 
         # TODO Unsustainable implementation to remove '?' rows -> 30 sec for 48 000 X 15 np.array
         #   Only issue is when calculating diversity, cant convert ? to int or float
         # Save in CSV and use that as source is one solution
-        df2 = utils.rm_qmark(df)
-        self.df_label = utils.rm_qmark(df_labels)
+        if clean_data == True:
+            df2 = utils.rm_qmark(df2)
+            self.df_label = utils.rm_qmark(df_labels)
 
         # Useinput percentage for size of train / test split
         self.n_test = int(len(df2.iloc[:,0])*percent_train_set)
@@ -220,13 +226,16 @@ def train(model: torch.nn.Module, train_loader:torch.utils.data.DataLoader, opti
     mean_loss = mean_loss.detach()
     return sum(mean_loss)
 
-def test(model: torch.nn.Module, experiment: PreProcessing, test_loss_fn:torch.optim, last_epoch: bool = False) -> (int, pd.DataFrame, pd.DataFrame):
+def test(model: torch.nn.Module, experiment: PreProcessing, test_loss_fn:torch.optim, gen_data: bool = False) -> (int, pd.DataFrame, pd.DataFrame):
     '''
         Does the test loop and if last epoch, decodes data, generates new data, returns and saves both 
         under ./experiments/<experiment_name>/
 
         :PARAMS
         model: torch model to use
+        experiment: PreProcessing object that contains data
+        test_loss_fn: Loss function from torch.nn 
+        gen_data: Whether we are running the last epoch (hence triggering data generation)
     '''
     model.eval()
     
@@ -238,7 +247,7 @@ def test(model: torch.nn.Module, experiment: PreProcessing, test_loss_fn:torch.o
 
             inputs, target = inputs.to(device), target.to(device)
             
-            if last_epoch == True:
+            if gen_data == True:
 
                 np_inputs = inputs.numpy()
                 headers = experiment.data_pp.encoded_features_order
@@ -249,7 +258,7 @@ def test(model: torch.nn.Module, experiment: PreProcessing, test_loss_fn:torch.o
 
             output = model(inputs.float())
 
-            if last_epoch == True:
+            if gen_data == True:
                 # decode dummy vars from model-generated data 
                 #       borrowing inv_transform function, also need to add headers
                 np_output = output.numpy()
@@ -292,39 +301,45 @@ class Training:
         
         '''
         start = time.time()
-
+        lowest_train_loss = 9999999999999
         self.test_accuracy = []
         self.ave_train_loss = []
 
         for epoch in range(self.num_epochs):
-            print(f"Epoch {epoch+1} of {self.num_epochs} running...")
+            print(f"Epoch {epoch} of {self.num_epochs} running...")
+            gen_data= False
 
             # Iterate on train set with SGD (adam)
             batch_ave_tr_loss = train(self.model,self.experiment_x.dataloader.train_loader, self.optimizer, self.train_loss)
             self.ave_train_loss.append(batch_ave_tr_loss.cpu().numpy().item())
 
+            if batch_ave_tr_loss < lowest_train_loss:
+                lowest_train_loss = batch_ave_tr_loss
+                print(f"lowest loss found. loss: {batch_ave_tr_loss}, epochs: {epoch}. ")
+                fm = open(model_saved+f"lowest-train-loss_ep{epoch}.pth", "wb")
+                torch.save(self.model.state_dict(), fm)
+                gen_data= True
+                fm.close()
+
             # check if last epoch, in order to generate data
-            last = False
-            if epoch+1 == self.num_epochs: 
-                last = True
+            if epoch== self.num_epochs: 
+                gen_data= True
 
             # Check test set metrics (+ generate data if last epoch )
-            loss, san_data, gen_data = test(self.model, self.experiment_x, self.test_loss_fn, last)
+            loss, san_data, model_gen_data = test(self.model, self.experiment_x, self.test_loss_fn, gen_data)
 
-            print(f"Epoch {epoch+1} complete. Test Loss: {loss:.6f} \n")      
+
+            print(f"Epoch {epoch} complete. Test Loss: {loss:.6f} \n")      
             self.test_accuracy.append(loss)#/len(self.experiment_x.dataloader.test_loader.dataset))
-        if last: # redundant statement
+        if gen_data == True: # redundant statement
             self.san_data = san_data
-            self.gen_data = gen_data
+            self.model_gen_data = model_gen_data
 
-
-        a = f'adult_{self.num_epochs}ep'
-
-        fm = open(path_to_exp+f"{str.replace(time.ctime(), ' ', '_')}-{a}.pth", "wb")
+        fm = open(model_saved+f"final-model_{self.num_epochs}ep.pth", "wb")
         torch.save(self.model.state_dict(), fm)
 
         end = time.time()
-        print(f"Training on {self.num_epochs} epochs completed in {(end-start)/60} minutes.")
+        print(f"Training on {self.num_epochs} epochs completed in {(end-start)/60} minutes.\n")
 
         # Save model meta data in txt file
         with open(path_to_exp+f"{str.replace(time.ctime(), ' ', '_')}-{a}.txt", 'w+') as f:
@@ -353,7 +368,7 @@ class Training:
         pd_og_data = self.experiment_x.labels_pp.__from_dummies__(ext_data=self.experiment_x.labels_pp.df).iloc[self.experiment_x.dataloader.train_size:,:]
         pd_og_data.reset_index(drop=True,inplace=True)
         pd_san_data = self.san_data
-        pd_gen_data = self.gen_data
+        pd_gen_data = self.model_gen_data
         
         # Damage First / attr
         dam = at.Damage()
@@ -373,20 +388,21 @@ class Training:
             d_cat, d_num = dam(original=test_data_dict[key][0], transformed=test_data_dict[key][1])
             dam_dict[key] = [d_cat, d_num]
 
-            dr = at.DimensionalityReduction()
-            dr.clusters_original_vs_transformed_plots({key.split('_')[0]: test_data_dict[key][0], key.split('_')[1]: test_data_dict[key][1]},labels=pd_og_data.iloc[:,5], dimRedFn=self.dim_red, savefig=path_to_exp+f"dim_reduce/{key}_damage.png")
+            if self.dim_red != 'none':
+                dr = at.DimensionalityReduction()
+                dr.clusters_original_vs_transformed_plots({key.split('_')[0]: test_data_dict[key][0], key.split('_')[1]: test_data_dict[key][1]},labels=pd_og_data.iloc[:,5], dimRedFn=self.dim_red, savefig=path_to_exp+f"dim_reduce/{key}_damage.png")
 
-            dr.original_vs_transformed_plots({key.split('_')[0]: test_data_dict[key][0], key.split('_')[1]: test_data_dict[key][1]}, dimRedFn=self.dim_red, savefig=path_to_exp+f"dim_reduce/{key}_damage.png")
+                dr.original_vs_transformed_plots({key.split('_')[0]: test_data_dict[key][0], key.split('_')[1]: test_data_dict[key][1]}, dimRedFn=self.dim_red, savefig=path_to_exp+f"dim_reduce/{key}_damage.png")
 
-            # Then Diversity 
-            # div = at.Diversity()
-            # diversity = div(test_data_dict[key][0], f"original_{key.split('_')[0]}")
-            # diversity.update(div(test_data_dict[key][1], f"transformed_{key.split('_')[1]}"))
-            # diversities.append(diversity)
+                # Then Diversity 
+                # div = at.Diversity()
+                # diversity = div(test_data_dict[key][0], f"original_{key.split('_')[0]}")
+                # diversity.update(div(test_data_dict[key][1], f"transformed_{key.split('_')[1]}"))
+                # diversities.append(diversity)
 
-            # saver = r.DiversityDamageResults(resultDir=path_to_exp+f"dim_reduce/", result_file=s_fn(f"DiversityDamage_{key}"),  num_damage=s_fn(f"numerical_damage_{key}"), overwrite=p.ResetAllMetrics)
+                # saver = r.DiversityDamageResults(resultDir=path_to_exp+f"dim_reduce/", result_file=s_fn(f"DiversityDamage_{key}"),  num_damage=s_fn(f"numerical_damage_{key}"), overwrite=p.ResetAllMetrics)
 
-            # saver.add_results(diversity=diversity, damage_categorical=d_cat, damage_numerical=d_num, epoch=self.num_epochs, alpha_=0)
+                # saver.add_results(diversity=diversity, damage_categorical=d_cat, damage_numerical=d_num, epoch=self.num_epochs, alpha_=0)
                 
         end = time.time()
         # Save all in file TODO graphs
