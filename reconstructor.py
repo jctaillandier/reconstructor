@@ -389,10 +389,10 @@ class Training:
                 # diversity = div(test_data_dict[key][0], f"original_{key.split('_')[0]}")
                 # diversity.update(div(test_data_dict[key][1], f"transformed_{key.split('_')[1]}"))
                 # diversities.append(diversity)
+                diversity = []
+                saver = r.DiversityDamageResults(resultDir=path_to_exp+f"dim_reduce/", result_file=f"cat_damage{key}",  num_damage=f"numerical_damage_{key}", overwrite=True)
 
-                # saver = r.DiversityDamageResults(resultDir=path_to_exp+f"dim_reduce/", result_file=s_fn(f"DiversityDamage_{key}"),  num_damage=s_fn(f"numerical_damage_{key}"), overwrite=p.ResetAllMetrics)
-
-                # saver.add_results(diversity=diversity, damage_categorical=d_cat, damage_numerical=d_num, epoch=self.num_epochs, alpha_=0)
+                saver.add_results(diversity=diversity, damage_categorical=d_cat, damage_numerical=d_num, epoch=self.num_epochs, alpha_=0)
                 
         end = time.time()
         # Save all in file TODO graphs
