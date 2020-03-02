@@ -97,7 +97,7 @@ class PreProcessing:
         # Save in CSV and use that as source is one solution
         if clean_data == True:
             df2 = utils.rm_qmark(df2)
-            self.df_label = utils.rm_qmark(df_labels)
+            self.df_label = utils.rm_qmark(self.df_labels)
 
         # Useinput percentage for size of train / test split
         self.n_test = int(len(df2.iloc[:,0])*percent_train_set)
@@ -246,7 +246,7 @@ def test(model: torch.nn.Module, experiment: PreProcessing, test_loss_fn:torch.o
 
             inputs, target = inputs.to(device), target.to(device)
         
-            np_inputs = inputs.numpy()
+            np_inputs = inputs.cpu().numpy()
             headers = experiment.data_pp.encoded_features_order
             input_df = pd.DataFrame(np_inputs, columns=headers)
             san_data = experiment.data_pp.__from_dummies__(ext_data=input_df)
@@ -424,10 +424,6 @@ class Training:
         plt.title("Train Loss")
         plt.savefig(path_to_exp+f"{str.replace(time.ctime(), ' ', '_')}-{a}_train-loss.png")
 
-    
-
-
-
 
         
 if __name__ == '__main__':
@@ -447,5 +443,5 @@ if __name__ == '__main__':
     # Generate test and train loss graphs (L1)
     training_instance.gen_loss_graphs()
 
-    print(f"Experiment can be found under {path_to_exp}")
+    print(f"\n \n Experiment can be found under {path_to_exp} \n \n ")
 
