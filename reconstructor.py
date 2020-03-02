@@ -63,7 +63,7 @@ else:
 
 path_to_exp = utils.check_dir_path(f'./experiments/{exp_name}/')
 os.mkdir(path_to_exp)
-model_saved = path_to_exp+'models/'
+model_saved = path_to_exp+'models_data/'
 os.mkdir(model_saved)
 # Data import & Pre-processing
 
@@ -226,7 +226,7 @@ def train(model: torch.nn.Module, train_loader:torch.utils.data.DataLoader, opti
     mean_loss = mean_loss.detach()
     return sum(mean_loss)
 
-def test(model: torch.nn.Module, experiment: PreProcessing, test_loss_fn:torch.optim, gen_data: bool = False) -> (int, pd.DataFrame, pd.DataFrame):
+def test(model: torch.nn.Module, experiment: PreProcessing, test_loss_fn:torch.optim) -> (int, pd.DataFrame, pd.DataFrame):
     '''
         Does the test loop and if last epoch, decodes data, generates new data, returns and saves both 
         under ./experiments/<experiment_name>/
@@ -235,7 +235,6 @@ def test(model: torch.nn.Module, experiment: PreProcessing, test_loss_fn:torch.o
         model: torch model to use
         experiment: PreProcessing object that contains data
         test_loss_fn: Loss function from torch.nn 
-        gen_data: Whether we are running the last epoch (hence triggering data generation)
     '''
     model.eval()
     
@@ -246,34 +245,26 @@ def test(model: torch.nn.Module, experiment: PreProcessing, test_loss_fn:torch.o
         for inputs, target in experiment.dataloader.test_loader:
 
             inputs, target = inputs.to(device), target.to(device)
-            
-            if gen_data == True:
-
-                np_inputs = inputs.numpy()
-                headers = experiment.data_pp.encoded_features_order
-                input_df = pd.DataFrame(np_inputs, columns=headers)
-                san_data = experiment.data_pp.__from_dummies__(ext_data=input_df)
-            else:
-                san_data = []
+        
+            np_inputs = inputs.numpy()
+            headers = experiment.data_pp.encoded_features_order
+            input_df = pd.DataFrame(np_inputs, columns=headers)
+            san_data = experiment.data_pp.__from_dummies__(ext_data=input_df)
 
             output = model(inputs.float())
 
-            if gen_data == True:
-                # decode dummy vars from model-generated data 
-                #       borrowing inv_transform function, also need to add headers
-                np_output = output.numpy()
-                headers = experiment.data_pp.encoded_features_order
-                output_df = pd.DataFrame(np_output, columns=headers)
-                gen_data = experiment.data_pp.__from_dummies__(ext_data=output_df)
-
-            else:
-                gen_data = []
+            # decode dummy vars from model-generated data 
+            #       borrowing inv_transform function, also need to add headers
+            np_output = output.numpy()
+            headers = experiment.data_pp.encoded_features_order
+            output_df = pd.DataFrame(np_output, columns=headers)
+            gen_data = experiment.data_pp.__from_dummies__(ext_data=output_df)
 
             test_size = len(inputs.float())
             test_loss += test_loss_fn(output.float(), target.float()).item() 
             batch_ave += test_loss/test_size
     
-    return batch_ave, san_data, gen_data # this needs to be decoded, but we cant directyl with d.de
+    return batch_ave, san_data, gen_data 
 
 
 class Training:
@@ -296,42 +287,41 @@ class Training:
     def train_model(self):
         '''
             Takes care of all model training, testing and generation of data
+            Generates data every epoch but only saves on file if loss is lowest so far.
             
-            experiment_x: PreProcessing object that contains all data and parameters
         
         '''
         start = time.time()
-        lowest_train_loss = 9999999999999
+        lowest_test_loss = 9999999999999
         self.test_accuracy = []
         self.ave_train_loss = []
 
         for epoch in range(self.num_epochs):
             print(f"Epoch {epoch} of {self.num_epochs} running...")
-            gen_data= False
 
             # Iterate on train set with SGD (adam)
             batch_ave_tr_loss = train(self.model,self.experiment_x.dataloader.train_loader, self.optimizer, self.train_loss)
             self.ave_train_loss.append(batch_ave_tr_loss.cpu().numpy().item())
 
-            if batch_ave_tr_loss < lowest_train_loss:
-                lowest_train_loss = batch_ave_tr_loss
-                print(f"lowest loss found. loss: {batch_ave_tr_loss}, epochs: {epoch}. ")
-                fm = open(model_saved+f"lowest-train-loss_ep{epoch}.pth", "wb")
+            # Check test set metrics (+ generate data if last epoch )
+            loss, san_data, model_gen_data = test(self.model, self.experiment_x, self.test_loss_fn)
+
+            if loss < lowest_test_loss:
+                lowest_test_loss = loss
+                fm = open(model_saved+f"lowest-test-loss_ep{epoch}.pth", "wb")
                 torch.save(self.model.state_dict(), fm)
-                gen_data= True
                 fm.close()
 
-            # check if last epoch, in order to generate data
-            if epoch== self.num_epochs: 
-                gen_data= True
-
-            # Check test set metrics (+ generate data if last epoch )
-            loss, san_data, model_gen_data = test(self.model, self.experiment_x, self.test_loss_fn, gen_data)
+                # Then we want this to be used as generated data
+                model_gen_data.to_csv(f"{model_saved}lowest_loss_ep{epoch}.csv", index=False)
+                self.san_data = san_data
+                self.model_gen_data = model_gen_data
 
 
             print(f"Epoch {epoch} complete. Test Loss: {loss:.6f} \n")      
             self.test_accuracy.append(loss)#/len(self.experiment_x.dataloader.test_loader.dataset))
-        if gen_data == True: # redundant statement
+
+        if lowest_test_loss == loss: # redundant statement
             self.san_data = san_data
             self.model_gen_data = model_gen_data
 
