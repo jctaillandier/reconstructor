@@ -9,29 +9,6 @@ import pickle
 
 
 
-def rm_qmark(df_data: pd.DataFrame, rm_row=True) -> pd.DataFrame:
-    '''
-        removes question mark string value from dataframe and either delete the row or replaces value with None type values.
-        It first moves it in numpy array for faster computation.
-        Especially usefull for Adult Dataset
-
-        :PARAMS
-        self explanatory
-        rm_rows: will remove whole row if True. Else will change value for None
-    '''
-    a = df_data.to_numpy()
-    headers = df_data.columns
-    for row_index, row in enumerate(a):
-        for col_index, data in enumerate(row):
-            if data =='?':
-                if rm_row==True:
-                    np.delete(a,[row_index],axis=0)
-                else:
-                    a[row_index,col_index]= None 
-                
-    newdf = pd.DataFrame(a, columns=headers)
-    return newdf
-
 class Encoder:
     """
     Class to handle all the preprocessing steps before passing the dataset to pytorch
@@ -146,7 +123,6 @@ class Encoder:
             data = kwargs['ext_data']
         else:
             data = self.df
-        # data = rm_qmark(data)
         categories = self.cat_clm
         cat_was_num = self.categorical_was_numeric
         out = data.copy()
@@ -279,6 +255,28 @@ class Encoder:
         if deepcopy:
             return copy.deepcopy(self)
         return copy.copy(self)
+    
+    def inverse_tr_external(self, data):
+        """
+            Recover the original data
+        """
+        excluded = pd.DataFrame()
+        # if self.prep_included is not None and len(self.prep_included) > 0:
+        #     excluded = self.df[self.prep_included] # Included
+        #     self.df = self.df.drop(self.prep_included, axis=1) # Excluded
+        #     excluded, self.df = self.df, excluded # Inverting both
+        # else:
+        if self.prep_excluded is not None:
+            excluded = data[self.prep_excluded]
+            data.drop(self.prep_excluded, axis=1, inplace=True)
+        data = pd.DataFrame(self.scaler.inverse_transform(data.values), columns=data.columns)
+        self.__from_dummies__()
+        # Scaler contains all columns
+        self.__squash_in_range__()
+        self.__round_integers__()
+        data = pd.concat([data, excluded], axis=1)[self.cols_order]
+
+        return data
 
 
 #### No need for alternating class samples. Just make a good stratification when splitting sets, and

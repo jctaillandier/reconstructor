@@ -6,26 +6,7 @@ data_loading:
             value: "./data/full_original.csv"
             desc: "Where labels are. Line by line equivalent to data"
 model_params:
-        batchSize: 
-            value: 512
-            desc: "Size of training batch size"
-        test_batch_size: 
-            value: 'full'
-            desc: "Size of testing batch size. Ususally as big as memory allows"
-        percent_train_set: 
-            value: 0.85
-            desc: "Percentage of total dataset used as training set. Rest goes into test set"
-        learning_rate:
-            value: 0.001
-            desc: "Learning rate `lr` for model training"
-        num_epochs:
-            value: 50
-            desc: "Number of epochs to train the model."
-        weight_decay:
-            value: 0
-            desc: "Weight Decay L2 penalty applied to weights. Unlikely needed as it helps generalization"
-post_processing:
-        dim_reduction:
-            value: 'pca'
-            desc: 'Choose from pca, tsne, umap or svp. Where pca is quicker to compute'
+        col_to_del:
+            value: 'sex'
+            desc: "Column to remove from training data. Considered 'sensitive' and assumed to be hidden."
         

@@ -22,8 +22,10 @@ class DiversityDamageResults:
     def add_results(self, diversity, damage_categorical, damage_numerical, **params):
         """ """
         all_data = {}
-        all_data.update(diversity)
-        all_data.update(damage_categorical)
+        if diversity != []:
+            all_data.update(diversity)
+        if damage_categorical != []:
+            all_data.update(damage_categorical)
         all_data = pd.DataFrame.from_dict(all_data)
 
         for k, v in params.items():
