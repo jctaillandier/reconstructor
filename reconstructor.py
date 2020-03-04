@@ -398,10 +398,11 @@ class Training:
             if (self.dim_red).lower() != 'none':
                 # each color is each label as specific
                 dr = at.DimensionalityReduction()
-                dr.clusters_original_vs_transformed_plots({key.split('_')[0]+'sex_a': test_data_dict[key][0], key.split('_')[1]+'sex_b': test_data_dict[key][1]},labels=test_data_dict[key][0]['sex'], dimRedFn=self.dim_red, savefig=path_to_eval+f"label_{key}_{self.dim_red}.png")
+                import pdb;pdb.set_trace()
+                dr.clusters_original_vs_transformed_plots({key.split('_')[0]: test_data_dict[key][0], key.split('_')[1]: test_data_dict[key][1]},labels=test_data_dict[key][0]['sex'], dimRedFn=self.dim_red, savefig=path_to_eval+f"label_{key}_{self.dim_red}.png")
 
                 # Each color is a dataset
-                dr.original_vs_transformed_plots({key.split('_')[0]: test_data_dict[key][0], key.split('_')[1]: test_data_dict[key][1]}, dimRedFn=self.dim_red, savefig=path_to_eval+f"_{key}_{self.dim_red}.png")
+                dr.original_vs_transformed_plots({key.split('_')[0]: test_data_dict[key][0], key.split('_')[1]: test_data_dict[key][1]}, dimRedFn=self.dim_red, savefig=path_to_eval+f"dataset_{key}_{self.dim_red}.png")
 
         os.remove(model_saved+'junk_test_og.csv')
         os.remove(model_saved+'junk_test_san.csv')
