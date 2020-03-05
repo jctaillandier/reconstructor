@@ -60,7 +60,7 @@ def parse_arguments(parser):
     parser.add_argument('-pts','--percent_train_set', type=float, default=0.85, help='Percentage of total Dataset that will be kept for training. Rest will be used for testing', required=False)
     parser.add_argument('-wd','--weight_decay', type=float, default=0, help='Value for L2 penalty known as Weight Decay. Has not shown any value in this use case', required=False)
     parser.add_argument('-lr','--learning_rate', type=float, default=1e-5, help='Learning rate on which we will optimize with Adam. Better performance are show with lr < 1e-4', required=False)
-    parser.add_argument('-dr','--dim_red', type=str, default='pca', help='Dimension reduction. Choose from pca, tsne, umap, svp or none. Where pca is quicker to compute', required=False)
+    parser.add_argument('-dr','--dim_red', type=str, default='umap', help='Dimension reduction. Choose from pca, tsne, umap, svp or none. Where pca is quicker to compute', required=False)
     parser.add_argument('-a','--alpha', type=float, default=0, help='Value of alpha used when  sanitizing the dataset we use as input.', required=False)
     # parser.add_argument('-','--', type=, default='', help='', required=False)
 

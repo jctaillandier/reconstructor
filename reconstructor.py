@@ -319,9 +319,9 @@ class Training:
         san_data = pd.DataFrame(test_san, columns=headers)
         san_data.to_csv(model_saved+'junk_test_san.csv', index=False)
         san_data_rough = pd.read_csv(model_saved+'junk_test_san.csv')
-        san_encoder = d.Encoder(san_data_rough)
-        san_encoder.load_parameters(path_to_exp, prmFile="parameters_data.prm")
-        pd_san_data = san_encoder.df
+        self.san_encoder = d.Encoder(san_data_rough)
+        self.san_encoder.load_parameters(path_to_exp, prmFile="parameters_data.prm")
+        pd_san_data = self.san_encoder.df
 
         # Original data == Model's target data
         test_og = self.experiment_x.dataloader.b[self.experiment_x.dataloader.train_size:,:]
@@ -329,29 +329,34 @@ class Training:
         og_data = pd.DataFrame(test_og, columns=headers)
         og_data.to_csv(model_saved+'junk_test_og.csv',  index=False)
         og_data_rough = pd.read_csv(model_saved+'junk_test_og.csv')
-        og_encoder = d.Encoder(og_data_rough)
-        og_encoder.load_parameters(path_to_exp, prmFile="parameters_data.prm")
-        pd_og_data = og_encoder.df
+        self.og_encoder = d.Encoder(og_data_rough)
+        self.og_encoder.load_parameters(path_to_exp, prmFile="parameters_data.prm")
+        pd_og_data = self.og_encoder.df
 
         #Generated Data
         test_gen = self.best_generated_data
         test_gen.to_csv(model_saved+'junk_test_gen.csv', index=False)
         gen_data_rough = pd.read_csv(model_saved+'junk_test_gen.csv')
-        gen_encoder = d.Encoder(gen_data_rough)
-        gen_encoder.load_parameters(path_to_exp, prmFile="parameters_data.prm")
-        pd_gen_data = gen_encoder.df
+        self.gen_encoder = d.Encoder(gen_data_rough)
+        self.gen_encoder.load_parameters(path_to_exp, prmFile="parameters_data.prm")
+        pd_gen_data = self.gen_encoder.df
 
         test_data_dict = {}
         test_data_dict['orig_san'] = [pd_og_data, pd_san_data]
-        test_data_dict['san_gen'] = [pd_san_data, pd_gen_data]
-        test_data_dict['gen_orig'] = [pd_gen_data, pd_og_data] 
+        test_data_dict['san_gen'] = [ pd_san_data,pd_gen_data]
+        test_data_dict['gen_orig'] = [pd_gen_data,pd_og_data] 
         
         # Calculate diversity among three dataset
         # Diversity is line by line, a
-        diversities = []
         path_to_eval = f"{path_to_exp}model_metrics/"
         os.mkdir(path_to_eval)
+
+        diversities = []
+        saver_dict = {}
         for key in test_data_dict:
+            # Save all damage and diversity results
+            saver_dict[key] = r.DiversityDamageResults(resultDir=path_to_eval, result_file=f"cat_damage_{key}.csv",  num_damage=f"numerical_damage_{key}.csv", overwrite=True)
+
             div = at.Diversity()
             diversity = div(test_data_dict[key][0], f"original_{key.split('_')[0]}")
             diversity.update(div(test_data_dict[key][1], f"transformed_{key.split('_')[1]}"))
@@ -359,34 +364,32 @@ class Training:
 
         # DECODE DATA
         # Sanitized data == model input data
-        san_encoder.inverse_transform()
-        pd_san_data = san_encoder.df
+        self.san_encoder.inverse_transform()
+        pd_san_data = self.san_encoder.df
         # Original data == Model's target data
-        og_encoder.inverse_transform()
-        pd_og_data = og_encoder.df
+        self.og_encoder.inverse_transform()
+        pd_og_data = self.og_encoder.df
         # Generated data
-        gen_encoder.inverse_transform()
-        pd_gen_data = gen_encoder.df
+        self.gen_encoder.inverse_transform()
+        pd_gen_data = self.gen_encoder.df
         pd_gen_data.to_csv(f"{model_saved}lowest-loss-generated-data_ep{self.lowest_loss_ep}.csv",  index=False)
 
         #TODO Figure out how to update a dict
-        test_data_dict['orig_san'] = [pd_og_data, pd_san_data]
-        test_data_dict['san_gen'] = [pd_san_data, pd_gen_data]
-        test_data_dict['gen_orig'] = [pd_gen_data, pd_og_data] 
+        test_data_dict['orig_san'] = [pd_og_data,  pd_san_data]
+        test_data_dict['san_gen'] = [ pd_san_data, pd_gen_data]
+        test_data_dict['gen_orig'] = [pd_gen_data, pd_og_data]
         
-        dam = at.Damage()
         dam_dict = {}
         i = 0
 
         # Calculation of Damage; Damage is for each feature, compared across two datasets
         for key in test_data_dict:
+            dam = at.Damage()
+
             d_cat, d_num = dam(original=test_data_dict[key][0], transformed=test_data_dict[key][1])
             dam_dict[key] = [d_cat, d_num]
 
-            # Save all damage and diversity results
-            saver = r.DiversityDamageResults(resultDir=path_to_eval, result_file=f"cat_damage_{key}.csv",  num_damage=f"numerical_damage_{key}.csv", overwrite=True)
-
-            saver.add_results(diversity=diversities[i], damage_categorical=d_cat, damage_numerical=d_num, epoch=self.num_epochs, alpha_=0)
+            saver_dict[key].add_results(diversity=diversities[i], damage_categorical=d_cat, damage_numerical=d_num, epoch=self.num_epochs, alpha_=args.alpha)
             i = i +1
             
             # Calculate dimention reduction is required
@@ -403,8 +406,6 @@ class Training:
         os.remove(model_saved+'junk_test_gen.csv')
         end = time.time()
         
-        print(f"Time to generate graphs: {(end-start)/60:.2f} minutes")
-        print(f"Results can be found under {path_to_eval}")
 
     def gen_loss_graphs(self):
         
@@ -423,9 +424,29 @@ class Training:
         plt.ylabel("L1 Loss")
         plt.title("Train Loss")
         plt.savefig(path_to_exp+f"{str.replace(time.ctime(), ' ', '_')}-{a}_train-loss.png")
+    
+    def my_metrics(self):
+        # Std-dev and mean for each encoded columns
+        self.og_encoder.fit_transform()
+        self.san_encoder.fit_transform()
+        self.gen_encoder.fit_transform()
+        headers = self.san_encoder.df.columns
 
+        stats = {}
+        stats['og_mean'] = [self.og_encoder.df.mean(axis=0), self.og_encoder.df.std()]
+        stats['san_mean'] = [self.san_encoder.df.mean(axis=0),self.san_encoder.df.std()]
+        stats['gen_mean'] = [self.gen_encoder.df.mean(axis=0),self.gen_encoder.df.std()]
+        path_base = path_to_exp+'base_metrics/'
+        os.mkdir(path_base)
 
+        mean = pd.concat([stats['og_mean'][0],stats['san_mean'][0],stats['gen_mean'][0]])
+        std_dev = pd.concat([stats['og_mean'][1],stats['san_mean'][1],stats['gen_mean'][1]])
+        # mean.insert(loc=0,column='Dataset', value=['Title','Original Data', 'Sanitized Data', 'Generated Data'])
+        # std_dev.insert(loc=0,column='Dataset', value=['Title','Original Data', 'Sanitized Data', 'Generated Data'])
         
+        mean.to_csv(path_base+'mean.csv',index=False)
+        std_dev.to_csv(path_base+'std_dev.csv',index=False)
+
 if __name__ == '__main__':
 
     # Setup folders and global variables
@@ -447,6 +468,7 @@ if __name__ == '__main__':
 
     # Generate test and train loss graphs (L1)
     training_instance.gen_loss_graphs()
+    # training_instance.my_metrics()
 
     print(f"\n \n Experiment can be found under {path_to_exp} \n \n ")
 
