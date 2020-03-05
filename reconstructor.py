@@ -189,7 +189,7 @@ def train(model: torch.nn.Module, train_loader:torch.utils.data.DataLoader, opti
             optimizer.step()
     mean_loss = sum(train_loss) / batch_idx+1
     mean_loss = mean_loss.detach()
-    return sum(mean_loss)
+    return sum(mean_loss)/len(mean_loss)
 
 def test(model: torch.nn.Module, experiment: PreProcessing, test_loss_fn:torch.optim) -> (int, pd.DataFrame, pd.DataFrame):
     '''
@@ -212,19 +212,14 @@ def test(model: torch.nn.Module, experiment: PreProcessing, test_loss_fn:torch.o
             inputs, target = inputs.to(device), target.to(device)
 
             output = model(inputs.float())
-
-            # decode dummy vars from model-generated data 
-            #       borrowing inv_transform function, also need to add headers
             np_output = output.cpu().numpy()
             headers = experiment.data_pp.encoded_features_order
             gen_data = pd.DataFrame(np_output, columns=headers)
 
             test_size = len(inputs.float())
             test_loss += test_loss_fn(output.float(), target.float()).item() 
-            batch_ave += test_loss/test_size
     
-    return batch_ave, gen_data 
-
+    return test_loss, gen_data 
 
 class Training:
     def __init__(self, experiment_x: PreProcessing, model_type:str='autoencoder'):
@@ -273,9 +268,9 @@ class Training:
             loss, model_gen_data = test(self.model, self.experiment_x, self.test_loss_fn)
 
             if loss < lowest_test_loss:
-                lowest_test_loss = loss
-                if os._exists(model_saved+f"lowest-test-loss-model_ep{self.lowest_loss_ep}.pth"):
+                if os.path.isfile(model_saved+f"lowest-test-loss-model_ep{self.lowest_loss_ep}.pth"):
                     os.remove(model_saved+f"lowest-test-loss-model_ep{self.lowest_loss_ep}.pth")
+                lowest_test_loss = loss
                 fm = open(model_saved+f"lowest-test-loss-model_ep{epoch}.pth", "wb")
                 torch.save(self.model.state_dict(), fm)
                 fm.close()
@@ -398,7 +393,6 @@ class Training:
             if (self.dim_red).lower() != 'none':
                 # each color is each label as specific
                 dr = at.DimensionalityReduction()
-                import pdb;pdb.set_trace()
                 dr.clusters_original_vs_transformed_plots({key.split('_')[0]: test_data_dict[key][0], key.split('_')[1]: test_data_dict[key][1]},labels=test_data_dict[key][0]['sex'], dimRedFn=self.dim_red, savefig=path_to_eval+f"label_{key}_{self.dim_red}.png")
 
                 # Each color is a dataset

@@ -52,7 +52,7 @@ def tensor_to_df(tensor: torch.Tensor, headers: List[str]) -> pd.DataFrame:
 
 
 def parse_arguments(parser):
-    parser.add_argument('-e','--exp_name', type=str, default='no-name', help='Name of the experiment. This will be used as folder name under /experiments/ dir', required=True)
+    parser.add_argument('-n','--exp_name', type=str, default='no-name', help='Name of the experiment. This will be used as folder name under /experiments/ dir', required=True)
     parser.add_argument('-ep','--epochs', type=int, help='Number of epochs to train the model.', required=True)
     parser.add_argument('-p','--params', type=str, default='params.yaml', help='.yaml file containing most parameters for model')
     parser.add_argument('-bs','--batch_size', type=int, default=512, help='batch size for Training loop. Test set will alwayas be the size of the test set (passed as one batch)')
