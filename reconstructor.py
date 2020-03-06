@@ -295,6 +295,7 @@ class Training:
         with open(path_to_exp+f"{str.replace(time.ctime(), ' ', '_')}-{a}.txt", 'w+') as f:
             f.write(f"Epochs: {self.num_epochs} \n")
             f.write(f"Learning Rate: {self.learning_rate} \n")
+            f.write(f"Number Epochs: {self.num_epochs} \n")
             f.write(f"weight decay: {self.wd}\n")
             f.write(f"Training Loss: {str(self.train_loss)}\n")
             f.write(f"Test Loss: {str(self.test_loss_fn)} \n")
