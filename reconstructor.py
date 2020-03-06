@@ -191,7 +191,7 @@ def train(model: torch.nn.Module, train_loader:torch.utils.data.DataLoader, opti
     mean_loss = mean_loss.detach()
     return sum(mean_loss)/len(mean_loss)
 
-def test(model: torch.nn.Module, experiment: PreProcessing, test_loss_fn:torch.optim) -> (int, pd.DataFrame, pd.DataFrame):
+def test(model: torch.nn.Module, experiment: PreProcessing, test_loss_fn:torch.optim) -> (int, pd.DataFrame):
     '''
         Does the test loop and if last epoch, decodes data, generates new data, returns and saves both 
         under ./experiments/<experiment_name>/
@@ -200,6 +200,10 @@ def test(model: torch.nn.Module, experiment: PreProcessing, test_loss_fn:torch.o
         model: torch model to use
         experiment: PreProcessing object that contains data
         test_loss_fn: Loss function from torch.nn 
+
+        :RETURN
+        int: average loss on this epoch
+        pd.DataFrame: generated data in a dataframe with encoded data
     '''
     model.eval()
     
