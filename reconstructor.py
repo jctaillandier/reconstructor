@@ -428,7 +428,7 @@ class Training:
         plt.xlabel("Epochs")
         plt.ylabel("L1 Loss")
         plt.title("Train Loss")
-        plt.savefig(path_to_exp+f"{str.replace(time.ctime(), ' ', '_')}-{a}_train-loss.png")
+        plt.savefig(path_to_exp+f"{exp_name}-{a}_train-loss.png")
     
     def my_metrics(self):
         # Std-dev and mean for each encoded columns
