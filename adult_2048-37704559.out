@@ -1,0 +1,20 @@
+
+ *** 
+ Currently running on cpu
+ *** 
+
+Saving output dataset under ./data/*_NoCat.csv 
+
+Epoch 0 of 5000 running...
+Epoch 0 complete. Test Loss: 0.169158 
+
+Epoch 1 of 5000 running...
+Epoch 1 complete. Test Loss: 0.134773 
+
+Epoch 2 of 5000 running...
+Epoch 2 complete. Test Loss: 0.126075 
+
+Epoch 3 of 5000 running...
+Epoch 3 complete. Test Loss: 0.127021 
+
+Epoch 4 of 5000 running...
