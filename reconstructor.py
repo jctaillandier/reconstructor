@@ -117,8 +117,7 @@ class My_dataLoader:
         self.trdata = torch.tensor(self.a[:self.train_size,:]) # where data is 2d [D_train_size x features]
         self.trlabels = torch.tensor(self.b[:self.train_size,:]) # also has too be 2d
         self.tedata = torch.tensor(self.a[self.train_size:,:]) # where data is 2d [D_train_size x features]
-        self.telabels = torch.tensor(self.b[self.train_size:,:]) # also has too be 2d
-        
+        self.telabels = torch.tensor(self.b[self.train_size:,:]) # also has too be 2d  
         self.train_dataset = torch.utils.data.TensorDataset(self.trdata, self.trlabels)
         self.test_dataset = torch.utils.data.TensorDataset(self.tedata, self.telabels)
 
@@ -207,8 +206,7 @@ def test(model: torch.nn.Module, experiment: PreProcessing, test_loss_fn:torch.o
     '''
     model.eval()
     
-    test_loss = 0
-    test_size = 0
+    test_loss = []
     batch_ave = 0
     with torch.no_grad():
         for inputs, target in experiment.dataloader.test_loader:
@@ -220,16 +218,18 @@ def test(model: torch.nn.Module, experiment: PreProcessing, test_loss_fn:torch.o
             headers = experiment.data_pp.encoded_features_order
             gen_data = pd.DataFrame(np_output, columns=headers)
 
-            test_size = len(inputs.float())
-            test_loss += test_loss_fn(output.float(), target.float()).item() 
-    
+            # here I keep values for L1 distance on each dimensions
+            loss = test_loss_fn(output.float(), target.float())
+            test_loss.append(loss.mean(dim=0))
+
     return test_loss, gen_data 
 
 class Training:
     def __init__(self, experiment_x: PreProcessing, model_type:str='autoencoder'):
         '''
             Training class takes in the Preprocessing object containing all data and creates an instance of training that is loading all hyper parameters from the specified file.
-            It will allow the training and testing loops, as well as the generation of all relevant metrics for comparison and analysis post-training
+            It will allow the training and testing loops, as well as the generation of all relevant metrics for comparison and analysis post-training.
+            Note that test loss is kept on a dimension by dimension basis, in order to identify which feature are getting close to original data and which aren't
 
             :PARAMS
             experiment_x: PreProcessing object created beforehand.  
@@ -246,7 +246,7 @@ class Training:
         if model_type == 'autoencoder':
             self.model = Autoencoder(self.in_dim, self.out_dim).to(device)
         self.train_loss = torch.nn.L1Loss(reduction='none').to(device) 
-        self.test_loss_fn =torch.nn.L1Loss().to(device)
+        self.test_loss_fn =torch.nn.L1Loss(reduction='none').to(device)
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=self.learning_rate, weight_decay=self.wd)
 
     def train_model(self):
@@ -260,7 +260,7 @@ class Training:
         self.ave_train_loss = []
         self.best_generated_data = []
         self.lowest_loss_ep = -1
-
+        self.lowest_loss_per_dim = []
         for epoch in range(self.num_epochs):
             print(f"Epoch {epoch} of {self.num_epochs} running...")
 
@@ -269,8 +269,9 @@ class Training:
             self.ave_train_loss.append(batch_ave_tr_loss.cpu().numpy().item())
 
             # Check test set metrics (+ generate data if last epoch )
-            loss, model_gen_data = test(self.model, self.experiment_x, self.test_loss_fn)
-
+            loss_per_dim_per_batch, model_gen_data = test(self.model, self.experiment_x, self.test_loss_fn)
+            loss_per_dim = sum(loss_per_dim_per_batch)/len(loss_per_dim_per_batch)
+            loss = sum(loss_per_dim)/len(loss_per_dim)
             if loss < lowest_test_loss:
                 if os.path.isfile(model_saved+f"lowest-test-loss-model_ep{self.lowest_loss_ep}.pth"):
                     os.remove(model_saved+f"lowest-test-loss-model_ep{self.lowest_loss_ep}.pth")
@@ -278,11 +279,13 @@ class Training:
                 fm = open(model_saved+f"lowest-test-loss-model_ep{epoch}.pth", "wb")
                 torch.save(self.model.state_dict(), fm)
                 fm.close()
+                self.lowest_loss_per_dim = loss_per_dim.numpy().tolist()
                 self.lowest_loss_ep = epoch
                 # Then we want this to be used as generated data
                 self.best_generated_data = model_gen_data
 
-            print(f"Epoch {epoch} complete. Test Loss: {loss:.6f} \n")      
+            loss_df = pd.DataFrame([self.lowest_loss_per_dim], columns=self.experiment_x.data_pp.encoded_features_order)
+            print(f"Epoch {epoch} complete. Test Loss: {self.lowest_loss_per_dim} \n")      
             self.test_accuracy.append(loss)#/len(self.experiment_x.dataloader.test_loader.dataset))
 
         fm = open(model_saved+f"final-model_{self.num_epochs}ep.pth", "wb")
@@ -291,10 +294,35 @@ class Training:
         end = time.time()
         print(f"Training on {self.num_epochs} epochs completed in {(end-start)/60} minutes.\n")
 
+        # Calculate and save the L1 distance on each encoded feature on Sanitized and Original Data, to compare and see whether the training got the distance closer
+        san_loss_fn = torch.nn.L1Loss(reduction='none')
+        for inputs, target in experiment.dataloader.test_loader:
+            loss_dim_batch = san_loss_fn(inputs.float(), target.float())
+            loss_dim = loss.mean(dim=0)
+            loss_per_dim = sum(loss_per_dim_per_batch)/len(loss_per_dim_per_batch)
+            self.sanitized_loss = loss_per_dim
+            break
+        is_better = []
+        how_much = []
+
+        for i, loss in enumerate(loss_per_dim):
+            if self.lowest_loss_per_dim[i] < loss:
+                is_better.append(True)
+                how_much.append((loss.item() - self.lowest_loss_per_dim[i]))
+            else:
+                is_better.append(False)
+                how_much.append((loss.item() - self.lowest_loss_per_dim[i]))
+            import pdb;pdb.set_trace()
+        
+        is_better_df = pd.DataFrame([is_better,how_much], columns=self.experiment_x.data_pp.encoded_features_order)
         # Save model meta data in txt file
         with open(path_to_exp+f"{str.replace(time.ctime(), ' ', '_')}-{a}.txt", 'w+') as f:
             f.write(f"Epochs: {self.num_epochs} \n")
-            f.write(f"Learning Rate: {self.learning_rate} \n")
+            f.write(f"Lowest lost Generated: {self.lowest_loss_per_dim} \n")
+            f.write(f"Loss from sanitized data: {self.sanitized_loss.numpy().tolist()} \n")
+            f.write(f"Is L1 better?\n  \n")
+            f.write(is_better_df.to_string(index=False))
+            f.write(f"\n \n Learning Rate: {self.learning_rate} \n")
             f.write(f"Number Epochs: {self.num_epochs} \n")
             f.write(f"weight decay: {self.wd}\n")
             f.write(f"Training Loss: {str(self.train_loss)}\n")
@@ -366,7 +394,6 @@ class Training:
             diversity = div(test_data_dict[key][0], f"original_{key.split('_')[0]}")
             diversity.update(div(test_data_dict[key][1], f"transformed_{key.split('_')[1]}"))
             diversities.append(diversity)
-
         # DECODE DATA
         # Sanitized data == model input data
         self.san_encoder.inverse_transform()
@@ -428,7 +455,7 @@ class Training:
         plt.xlabel("Epochs")
         plt.ylabel("L1 Loss")
         plt.title("Train Loss")
-        plt.savefig(path_to_exp+f"{exp_name}-{a}_train-loss.png")
+        plt.savefig(path_to_exp+f"{args.exp_name}-{a}_train-loss.png")
     
     def my_metrics(self):
         # Std-dev and mean for each encoded columns
@@ -438,19 +465,18 @@ class Training:
         headers = self.san_encoder.df.columns
 
         stats = {}
-        stats['og_mean'] = [self.og_encoder.df.mean(axis=0), self.og_encoder.df.std()]
-        stats['san_mean'] = [self.san_encoder.df.mean(axis=0),self.san_encoder.df.std()]
-        stats['gen_mean'] = [self.gen_encoder.df.mean(axis=0),self.gen_encoder.df.std()]
+        a = self.og_encoder.df.describe(), 
+        b = self.san_encoder.df.describe()
+        c = self.gen_encoder.df.describe()
         path_base = path_to_exp+'base_metrics/'
         os.mkdir(path_base)
-
-        mean = pd.concat([stats['og_mean'][0],stats['san_mean'][0],stats['gen_mean'][0]])
-        std_dev = pd.concat([stats['og_mean'][1],stats['san_mean'][1],stats['gen_mean'][1]])
-        # mean.insert(loc=0,column='Dataset', value=['Title','Original Data', 'Sanitized Data', 'Generated Data'])
-        # std_dev.insert(loc=0,column='Dataset', value=['Title','Original Data', 'Sanitized Data', 'Generated Data'])
         
-        mean.to_csv(path_base+'mean.csv',index=False)
-        std_dev.to_csv(path_base+'std_dev.csv',index=False)
+        ab = a==b
+        ab.to_csv(path_base+"original_sanitized.csv")
+        bc = b==c
+        bc.to_csv(path_base+"sanitized_generated.csv")
+        ca = c==a
+        ca.to_csv(path_base+"generated_original.csv")
 
 if __name__ == '__main__':
 

@@ -1,9 +1,9 @@
 data_loading:
         data_path: 
-            value: "./data/full_a=0_E=19.csv"
+            value: "./data/disp_impact_remover_0.9.csv"
             desc: "Where to get the input dataset"
         label_path:
-            value: "./data/full_original.csv"
+            value: "./data/disp_impact_remover_og.csv"
             desc: "Where labels are. Line by line equivalent to data"
 model_params:
         col_to_del:
