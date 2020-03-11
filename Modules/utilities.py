@@ -66,7 +66,7 @@ def parse_arguments(parser):
 
     # parser.add_argument('--discriminator_size', type=tuple, default=(256, 128, 1), help='The dimension size of the discriminator. (default value: (256, 128, 1))')
     args = parser.parse_args()
-    exp_name = args.exp_name + f"_{args.epochs}ep_{args.batch_size}bs_{args.learning_rate}lr"
+    exp_name = args.exp_name + f"{args.input_dataset}_{args.epochs}ep_{args.batch_size}bs_{args.learning_rate}lr"
     path_to_exp = check_dir_path(f'./experiments/{exp_name}/')
     os.mkdir(path_to_exp)
     model_saved = path_to_exp+'models_data/'

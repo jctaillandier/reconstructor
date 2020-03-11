@@ -45,7 +45,7 @@ class PreProcessing:
         self.attr_to_gen = args.attr_to_gen
 
         self.batchSize = args.batch_size       
-        test_batch_size = args.test_batch_size    
+           
         # Useinput percentage for size of train / test split   
         percent_train_set = args.percent_train_set
         df2 = pd.read_csv(import_path)
@@ -56,7 +56,7 @@ class PreProcessing:
         self.data_pp = d.Encoder(import_path)
         self.labels_pp = d.Encoder(label_path)
         
-        # Remove ?
+        # Remove ? --> Likely no need if using gansan' AdultNotNA.csv
         # for index, col in enumerate(self.data_pp.df.columns):
         #     self.data_pp.df = self.data_pp.df[~self.data_pp.df[str(col)].isin(['?'])]
         #     self.labels_pp.df = self.labels_pp.df.drop(index=index)
@@ -74,22 +74,19 @@ class PreProcessing:
             self.labels_pp.transform()
         else:
             self.data_pp.save_parameters(path_to_exp, prmFile=f"{args.input_dataset}_parameters_data.prm")
-            self.labels_pp.df.drop(['income-per-year'], axis=1, inplace=True)
-            self.data_pp.df.drop(['income-per-year'],axis=1, inplace=True)
+            # self.labels_pp.df.drop(['income-per-year'], axis=1, inplace=True)
+            # self.data_pp.df.drop(['income-per-year'],axis=1, inplace=True)
         
         # MAke sure post processing label and data are of same shape
         if self.data_pp.df.shape != self.labels_pp.df.shape:
             raise ValueError(f"The data csv ({self.data_pp.df.shape}) and labels ({self.labels_pp.df.shape}) post-encoding don't have the same shape.")
 
         
-        self.dataloader = My_dataLoader(self.batchSize, self.data_pp.df, self.labels_pp.df, self.n_test, test_batch_size=test_batch_size)
-        
-        self.data_dataframe = self.data_pp.df
-        self.labels_dataframe = self.labels_pp.df
+        self.dataloader = My_dataLoader(self.batchSize, self.data_pp.df, self.labels_pp.df, self.n_test)
         
 
 class My_dataLoader:
-    def __init__(self, batch_size : int, df_data: pd.DataFrame, df_label:pd.DataFrame, n_train :int, test_batch_size:int='full'):
+    def __init__(self, batch_size : int, df_data: pd.DataFrame, df_label:pd.DataFrame, n_train :int):
         '''
             Creates train and test loaders from local files, to be easily used by torch.nn
             
@@ -97,28 +94,27 @@ class My_dataLoader:
             :data_path: path to csv where data is. 2d file
             :label_path: csv containing labels. line by line equivalent to data_path file
             :n_train: int for the size of training set (assigned randomly)
-            :test_batch_size: size of batches at test time. If none, will be same 
-                    as training
         '''
         self.batch_size = batch_size
         self.train_size = n_train
-        
+        self.data_with_sensitive = df_data
+        self.label_with_sensitive = df_label
         # Remove Sensitive attribute from input since we want to infer it 
         # Assumption is that sanitizer will not provide it 
         # self.out_dim_to_add = 0 
-        self.headers_with_sensitive = df_data.columns
+        self.df_data = df_data
+        self.df_label = df_label
         if args.attr_to_gen.lower() is not 'none':
             for col in df_data.columns:
                 if args.attr_to_gen.lower() in col.lower():
                     df_data.drop([col], axis=1, inplace=True)
+        
                     # self.out_dim_to_add = self.out_dim_to_add + 1
-        self.headers_wo_sensitive =  df_data.columns    
-        self.a = df_data.values
-        self.b = df_label.values
-        self.trdata = torch.tensor(self.a[:self.train_size,:]) # where data is 2d [D_train_size x features]
-        self.trlabels = torch.tensor(self.b[:self.train_size,:]) # also has too be 2d
-        self.tedata = torch.tensor(self.a[self.train_size:,:]) # where data is 2d [D_train_size x features]
-        self.telabels = torch.tensor(self.b[self.train_size:,:]) # also has too be 2d  
+        self.headers_wo_sensitive =  df_data.columns   
+        self.trdata = torch.tensor(self.df_data.values[:self.train_size,:]) # where data is 2d [D_train_size x features]
+        self.trlabels = torch.tensor(self.df_label.values[:self.train_size,:]) # also has too be 2d
+        self.tedata = torch.tensor(self.df_data.values[self.train_size:,:]) # where data is 2d [D_train_size x features]
+        self.telabels = torch.tensor(self.df_label.values[self.train_size:,:]) # also has too be 2d  
         self.train_dataset = torch.utils.data.TensorDataset(self.trdata, self.trlabels)
         self.test_dataset = torch.utils.data.TensorDataset(self.tedata, self.telabels)
         
@@ -129,12 +125,13 @@ class My_dataLoader:
             num_workers=1,
             pin_memory=False
         )
-        if test_batch_size == 'full':
-            test_batch_size = len(self.test_dataset)
-            
+        if args.test_batch_size == 'full':
+            self.test_batch_size = len(self.test_dataset)
+        else:
+            self.test_batch_size = args.test_batch_size
         self.test_loader = torch.utils.data.DataLoader(
             self.test_dataset,
-            batch_size=test_batch_size,
+            batch_size=self.test_batch_size,
             num_workers=1,
             pin_memory=False
         )
@@ -281,24 +278,38 @@ class Training:
         end = time.time()
         print(f"Training on {self.num_epochs} epochs completed in {(end-start)/60} minutes.\n")
 
-        # Calculate and save the L1 distance on each encoded feature on Sanitized and Original Data, to compare and see whether the training got the distance closer
-        san_loss_fn = torch.nn.L1Loss(reduction='none')       
-        # Need to remove 'sex' column to calculate L1 distance
-        for inputs, target in experiment.dataloader.test_loader:
-            
-            # TODO Issue here is target contains sex=male and sex=female, hence 55 features
-            data = pd.DataFrame(target, columns=self.experiment_x.dataloader.headers_with_sensitive)
+        # Calculate and save the L1 distance on each encoded feature on Sanitized and Original Data, to compare and see whether the training got the distance closer. We include the sensitive attribute.
+        san_loss_fn = torch.nn.L1Loss(reduction='none')
+        if args.input_dataset != 'gansan':
+            og_test_data = torch.tensor(self.experiment_x.dataloader.data_with_sensitive.values[self.experiment_x.dataloader.train_size:,:])
+            og_test_labels = torch.tensor(self.experiment_x.dataloader.label_with_sensitive.values[self.experiment_x.dataloader.train_size:,:])
+            self.og_test_dataset = torch.utils.data.TensorDataset(og_test_data, og_test_labels)
+
+        else:
+            og_test_data = torch.tensor(self.experiment_x.dataloader.dataloader.data_with_sensitive.values[self.experiment_x.dataloader.train_size:,:])
+            og_test_labels = torch.tensor(self.experiment_x.dataloader.label_with_sensitive.values[self.experiment_x.dataloader.train_size:,:])
+            self.og_test_dataset = torch.utils.data.TensorDataset(og_test_data, og_test_labels)
+
+        og_dataloader = torch.utils.data.DataLoader(
+            self.og_test_dataset,
+            batch_size=self.experiment_x.dataloader.test_batch_size,
+            num_workers=1,
+            pin_memory=False
+        )       
+        for inputs, target in og_dataloader:
+            data = pd.DataFrame(target, columns=self.experiment_x.dataloader.data_with_sensitive.columns)
             if args.attr_to_gen.lower() is not 'none':
                 for col in data.columns:
                     if args.attr_to_gen.lower() in col.lower():
                         data.drop([col], axis=1, inplace=True)
             target = torch.tensor(data.values.astype(np.float32))
-            
             loss_dim_batch = san_loss_fn(inputs.float(), target.float())
             loss_dim = loss.mean(dim=0)
             loss_per_dim = sum(loss_per_dim_per_batch)/len(loss_per_dim_per_batch)
             self.sanitized_loss = loss_per_dim
             break
+        
+        # here we compare the above with L1 between Test Set L1
         is_better = []
         how_much = []
         better_count = 0
@@ -310,8 +321,12 @@ class Training:
             else:
                 is_better.append(False)
                 how_much.append((loss.item() - self.lowest_loss_per_dim[i]))
-        
-        is_better_df = pd.DataFrame([is_better,how_much], columns=self.experiment_x.data_pp.encoded_features_order)
+                
+        if args.input_dataset == 'gansan':
+            is_better_df = pd.DataFrame([is_better,how_much], columns=self.experiment_x.data_pp.encoded_features_order)
+        else: 
+            
+            is_better_df = pd.DataFrame([is_better,how_much], columns=self.experiment_x.data_pp.cols_order)
         # Save model meta data in txt file
         with open(path_to_exp+f"{str.replace(time.ctime(), ' ', '_')}.txt", 'w+') as f:
             f.write(f"Epochs: {self.num_epochs} \n")
@@ -319,7 +334,7 @@ class Training:
             f.write(f"Loss from sanitized data: {self.sanitized_loss.numpy().tolist()} \n")
             f.write(f"Is L1 better?\n  \n")
             f.write(is_better_df.to_string(index=False))
-            f.write(f"Total of {better_count} / {len(is_better_df.columns)} are now closer to original data (L1 distance).")
+            f.write(f"\nTotal of {better_count} / {len(is_better_df.columns)} are now closer to original data (L1 distance).")
             f.write(f"\n \n Learning Rate: {self.learning_rate} \n")
             f.write(f"Number Epochs: {self.num_epochs} \n")
             f.write(f"weight decay: {self.wd}\n")
@@ -344,10 +359,10 @@ class Training:
         print(f"Starting calculation Three-way of Diversity, Damage and graphs: {self.dim_red}")
         start = time.time()
 
-        
+
         # TODO loop through those 3 paragraphs
         # Sanitized data == model input data
-        test_san = self.experiment_x.dataloader.a[self.experiment_x.dataloader.train_size:,:] 
+        test_san = self.experiment_x.dataloader.df_data.values[self.experiment_x.dataloader.train_size:,:] 
         headers = self.experiment_x.dataloader.headers_wo_sensitive
         san_data = pd.DataFrame(test_san, columns=headers)
         san_data.to_csv(model_saved+'junk_test_san.csv', index=False)
@@ -356,7 +371,7 @@ class Training:
         pd_san_data = self.san_encoder.df
 
         # Original data == Model's target data
-        test_og = self.experiment_x.dataloader.b[self.experiment_x.dataloader.train_size:,:]
+        test_og = self.experiment_x.dataloader.df_label.values[self.experiment_x.dataloader.train_size:,:]
         headers = self.experiment_x.data_pp.encoded_features_order
         og_data = pd.DataFrame(test_og, columns=headers)
         og_data.to_csv(model_saved+'junk_test_og.csv',  index=False)
@@ -455,13 +470,13 @@ class Training:
         plt.title("Train Loss")
         plt.savefig(path_to_exp+f"{args.exp_name}-{a}_train-loss.png")
     
-    def my_metrics(self):
-        # # Std-dev and mean for each encoded columns
-        # self.og_encoder.fit_transform()
-        # self.san_encoder.fit_transform()
-        # self.gen_encoder.fit_transform()
-        headers = self.san_encoder.df.columns
-
+    def pandas_describe(self):
+        '''
+            Runs and save pandas.describe function on all three dataset:
+            Orginal, Sanitized and Generated, then saves under /base_metrics
+        '''
+        pdb.set_trace()
+        headers = self.experiment_x
         a = self.og_encoder.df.describe()
         b = self.san_encoder.df.describe()
         c = self.gen_encoder.df.describe()
@@ -492,7 +507,7 @@ if __name__ == '__main__':
 
     # Generate test and train loss graphs (L1)
     training_instance.gen_loss_graphs()
-    training_instance.my_metrics()
+    training_instance.pandas_describe()
 
     print(f"\n \n Experiment can be found under {path_to_exp} \n \n ")
 
