@@ -325,15 +325,13 @@ class Training:
         if args.input_dataset == 'gansan':
             is_better_df = pd.DataFrame([is_better,how_much], columns=self.experiment_x.data_pp.encoded_features_order)
         else: 
-            
             is_better_df = pd.DataFrame([is_better,how_much], columns=self.experiment_x.data_pp.cols_order)
+
         # Save model meta data in txt file
         with open(path_to_exp+f"{str.replace(time.ctime(), ' ', '_')}.txt", 'w+') as f:
             f.write(f"Epochs: {self.num_epochs} \n")
             f.write(f"Lowest lost Generated: {self.lowest_loss_per_dim} \n")
             f.write(f"Loss from sanitized data: {self.sanitized_loss.numpy().tolist()} \n")
-            f.write(f"Is L1 better?\n  \n")
-            f.write(is_better_df.to_string(index=False))
             f.write(f"\nTotal of {better_count} / {len(is_better_df.columns)} are now closer to original data (L1 distance).")
             f.write(f"\n \n Learning Rate: {self.learning_rate} \n")
             f.write(f"Number Epochs: {self.num_epochs} \n")
@@ -346,6 +344,8 @@ class Training:
             f.write(f"Train loss values: {str(self.ave_train_loss)} \n")
             f.write(f"Test loss values: {str(self.test_accuracy)}\n")
 
+        os.mkdir(path_base)
+        is_better_df.to_csv(path_base+f"reconstruction_appraisal.csv", index=False)
 
     def post_training_metrics(self):
         '''
@@ -475,13 +475,9 @@ class Training:
             Runs and save pandas.describe function on all three dataset:
             Orginal, Sanitized and Generated, then saves under /base_metrics
         '''
-        pdb.set_trace()
-        headers = self.experiment_x
         a = self.og_encoder.df.describe()
         b = self.san_encoder.df.describe()
         c = self.gen_encoder.df.describe()
-        path_base = path_to_exp+'base_metrics/'
-        os.mkdir(path_base)
         
         a.to_csv(path_base+"original.csv")
         b.to_csv(path_base+"sanitized.csv")
@@ -492,6 +488,7 @@ if __name__ == '__main__':
     # Setup folders and global variables
     parser = argparse.ArgumentParser()
     args, path_to_exp, model_saved = utils.parse_arguments(parser)
+    path_base = path_to_exp+'distance_comparison/'
 
     # Pre Process Data
     experiment = PreProcessing()
