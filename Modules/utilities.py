@@ -54,15 +54,15 @@ def tensor_to_df(tensor: torch.Tensor, headers: List[str]) -> pd.DataFrame:
 def parse_arguments(parser):
     parser.add_argument('-n','--exp_name', type=str, default='no-name', help='Name of the experiment. This will be used as folder name under /experiments/ dir', required=True)
     parser.add_argument('-ep','--epochs', type=int, help='Number of epochs to train the model.', required=True)
-    parser.add_argument('-p','--params', type=str, default='params.yaml', help='.yaml file containing most parameters for model')
     parser.add_argument('-bs','--batch_size', type=int, default=1024, help='batch size for Training loop. Test set will alwayas be the size of the test set (passed as one batch)')
     parser.add_argument('-tbs','--test_batch_size', type=str, default='full', help='Size of test batch size. Do not touch. If fails for out of memory, need code adjustment', required=False)
     parser.add_argument('-pts','--percent_train_set', type=float, default=0.85, help='Percentage of total Dataset that will be kept for training. Rest will be used for testing', required=False)
     parser.add_argument('-wd','--weight_decay', type=float, default=0, help='Value for L2 penalty known as Weight Decay. Has not shown any value in this use case', required=False)
     parser.add_argument('-lr','--learning_rate', type=float, default=1e-5, help='Learning rate on which we will optimize with Adam. Better performance are show with lr < 1e-4', required=False)
-    parser.add_argument('-dr','--dim_red', type=str, default='tsne', help='Dimension reduction. Choose from pca, tsne, umap, svp or none. Where pca is quicker to compute', required=False)
+    parser.add_argument('-dr','--dim_red', type=str, default='none', help='Dimension reduction. Choose from pca, tsne, umap, svp or none. Where pca is quicker to compute', required=False, choices=['none', 'umap', 'tsne', 'svp','pca'])
     parser.add_argument('-a','--alpha', type=float, default=0, help='Value of alpha used when  sanitizing the dataset we use as input.', required=False)
-    # parser.add_argument('-','--', type=, default='', help='', required=False)
+    parser.add_argument('-ag','--attr_to_gen', type=str, default='none', help='Attribute that we want to remove from input if present, and have model infer; out_dim=in_dim+2', required=False)
+    parser.add_argument('-in','--input_dataset', type=str, default='gansan', help='Dataset to use as input. Currently support `gansan` and `disp_impact`', required=False, choices=['gansan', 'disp_impact'])
 
     # parser.add_argument('--discriminator_size', type=tuple, default=(256, 128, 1), help='The dimension size of the discriminator. (default value: (256, 128, 1))')
     args = parser.parse_args()

@@ -7,6 +7,7 @@ from Modules import results as r
 # from Stats import Plots as Pl
 import csv, sys, yaml, math, json, tqdm, time, torch, random, os.path, warnings, argparse, importlib, torchvision 
 import numpy as np
+import pdb
 import pandas as pd
 from torch import nn
 import seaborn as sns
@@ -22,23 +23,8 @@ CPU_DEVICE = torch.device("cpu")
 GET_VALUE = lambda x: x.to(CPU_DEVICE).data.numpy().reshape(-1)[0]
 print(f"\n *** \n Currently running on {device}\n *** \n")
 
-a = 'adult'
-# if not sys.argv:
-#     raise EnvironmentError("Not enough parameters added to command: Need (1) paramsfile.yaml and (2) experiment_name")
-# args = sys.argv[1:]
-
-# if args[0][-5:] != '.yaml':
-#     raise ValueError("first argument needs to be the parameters file in yaml format")
-# params_file = args[0]
-
-# if args[1]:
-#     exp_name = args[1]
-# else:
-#     print("No name given to experiment.")
-#     exp_name = "no-name"
-
 class PreProcessing:
-    def __init__(self, params_file: str):
+    def __init__(self):
         '''
             Imports all variables/parameters necessary for preparation of training.
             Looks into params.yaml, then creates dataloader that can be used
@@ -46,53 +32,64 @@ class PreProcessing:
             params_file: path to file that contains parameters.
                             Needs to follow a specific naming and format
         '''
-        # Import params
-        stream = open(params_file, 'r')
-        self.params = yaml.load(stream, yaml.FullLoader)
-        import_path = self.params['data_loading']['data_path']['value']
-        label_path = self.params['data_loading']['label_path']['value']
+
+        if args.input_dataset == 'disp_impact': 
+            import_path = "./data/disp_impact_remover_1.0.csv"
+            label_path = "./data/disp_impact_remover_og.csv"
+
+        elif args.input_dataset == 'gansan':    
+            import_path = "./data/full_a=0_E=19.csv"
+            label_path = "./data/full_original.csv"
+        print(f"\n Running on {args.input_dataset} dataset input. \n")
+        
+        self.attr_to_gen = args.attr_to_gen
+
         self.batchSize = args.batch_size       
-        test_batch_size = args.test_batch_size       
+        test_batch_size = args.test_batch_size    
+        # Useinput percentage for size of train / test split   
         percent_train_set = args.percent_train_set
-        self.col_to_rm = self.params['model_params']['col_to_del']['value']
-
         df2 = pd.read_csv(import_path)
-        self.df_labels = pd.read_csv(label_path)
-        df2.replace('?', None, inplace=True)
-        self.df_labels.replace('?', None, inplace=True)
-
-        # Useinput percentage for size of train / test split
         self.n_test = int(len(df2.iloc[:,0])*percent_train_set)
 
-        #Make encoding object to transform categorical
+
+        # Encode Input data if needed
         self.data_pp = d.Encoder(import_path)
-        self.data_pp.fit_transform()
-        self.data_pp.save_parameters(path_to_exp, prmFile="parameters_data.prm")
-
-        # For Label (orginal_images)
-        self.labels_pp = d.Encoder(import_path)
-        self.labels_pp.fit_transform()
-        self.labels_pp.save_parameters(path_to_exp, prmFile="parameters_labels.prm")
+        self.labels_pp = d.Encoder(label_path)
         
+        # Remove ?
+        # for index, col in enumerate(self.data_pp.df.columns):
+        #     self.data_pp.df = self.data_pp.df[~self.data_pp.df[str(col)].isin(['?'])]
+        #     self.labels_pp.df = self.labels_pp.df.drop(index=index)
+        # for index, col in enumerate(self.labels_pp.df.columns):
+        #     self.labels_pp.df = self.labels_pp.df[~self.labels_pp.df[str(col)].isin(['?'])]
+        #     self.data_pp.df = self.data_pp.df.drop(index=index)
         
-
-        print(f"Saving output dataset under ./data/*_NoCat.csv \n")
-        self.data_pp.df.to_csv(f"{import_path[:-4]}_NoCat.csv", index=False)
-        self.labels_pp.df.to_csv(f"{label_path[:-4]}_NoCat.csv", index=False)
-
+        # Encode if gansan input
+        if args.input_dataset == 'gansan':
+            # self.data_pp.load_parameters('./data/')
+            # self.labels_pp.load_parameters('./data/')
+            self.data_pp.fit_transform()
+            self.data_pp.save_parameters(path_to_exp, prmFile=f"{args.input_dataset}_parameters_data.prm")
+            self.labels_pp.load_parameters(path_to_exp, prmFile=f"{args.input_dataset}_parameters_data.prm")
+            self.labels_pp.transform()
+        else:
+            self.data_pp.save_parameters(path_to_exp, prmFile=f"{args.input_dataset}_parameters_data.prm")
+            self.labels_pp.df.drop(['income-per-year'], axis=1, inplace=True)
+            self.data_pp.df.drop(['income-per-year'],axis=1, inplace=True)
         
-
         # MAke sure post processing label and data are of same shape
-        if self.data_pp.df.shape != self.data_pp.df.shape:
-            raise ValueError(f"The data csv ({self.data_pp.df.shape}) and labels ({self.data_pp.df.shape}) post-encoding don't have the same shape.")
+        if self.data_pp.df.shape != self.labels_pp.df.shape:
+            raise ValueError(f"The data csv ({self.data_pp.df.shape}) and labels ({self.labels_pp.df.shape}) post-encoding don't have the same shape.")
 
-        self.dataloader = My_dataLoader(self.batchSize, f"{import_path[:-4]}_NoCat.csv", f"{label_path[:-4]}_NoCat.csv", self.n_test, test_batch_size=test_batch_size, col_to_rm=self.col_to_rm)
-
+        
+        self.dataloader = My_dataLoader(self.batchSize, self.data_pp.df, self.labels_pp.df, self.n_test, test_batch_size=test_batch_size)
+        
         self.data_dataframe = self.data_pp.df
         self.labels_dataframe = self.labels_pp.df
+        
 
 class My_dataLoader:
-    def __init__(self, batch_size : int, data_path :str, label_path:str, n_train :int, test_batch_size:int=128, col_to_rm:str='None'):
+    def __init__(self, batch_size : int, df_data: pd.DataFrame, df_label:pd.DataFrame, n_train :int, test_batch_size:int='full'):
         '''
             Creates train and test loaders from local files, to be easily used by torch.nn
             
@@ -106,12 +103,16 @@ class My_dataLoader:
         self.batch_size = batch_size
         self.train_size = n_train
         
-        df_data = pd.read_csv(data_path)
-        df_label = pd.read_csv(label_path)
-
-        # if col_to_rm is not 'None':
-        #     del df_data[str(col_to_rm)]
-        
+        # Remove Sensitive attribute from input since we want to infer it 
+        # Assumption is that sanitizer will not provide it 
+        # self.out_dim_to_add = 0 
+        self.headers_with_sensitive = df_data.columns
+        if args.attr_to_gen.lower() is not 'none':
+            for col in df_data.columns:
+                if args.attr_to_gen.lower() in col.lower():
+                    df_data.drop([col], axis=1, inplace=True)
+                    # self.out_dim_to_add = self.out_dim_to_add + 1
+        self.headers_wo_sensitive =  df_data.columns    
         self.a = df_data.values
         self.b = df_label.values
         self.trdata = torch.tensor(self.a[:self.train_size,:]) # where data is 2d [D_train_size x features]
@@ -120,7 +121,7 @@ class My_dataLoader:
         self.telabels = torch.tensor(self.b[self.train_size:,:]) # also has too be 2d  
         self.train_dataset = torch.utils.data.TensorDataset(self.trdata, self.trlabels)
         self.test_dataset = torch.utils.data.TensorDataset(self.tedata, self.telabels)
-
+        
         # Split dataset into train and Test sets
         self.train_loader = torch.utils.data.DataLoader(
             self.train_dataset,
@@ -145,36 +146,22 @@ class Autoencoder(nn.Module):
             nn.Linear(in_dim, in_dim),
             # batchnorm?,
             nn.LeakyReLU(),
-            nn.Linear(in_dim,in_dim),
+            nn.Linear(in_dim,out_dim),
             # batchnorm,
             nn.LeakyReLU(), 
-            nn.Linear(in_dim,out_dim),
+            nn.Linear(out_dim,out_dim),
             nn.LeakyReLU()
         )
-        # self.decoder = nn.Sequential(
-        #     # batchnorm,
-        #     nn.Linear(in_dim, in_dim),
-        #     nn.LeakyReLU(),
-        #     nn.Linear(in_dim, in_dim),
-        #     nn.LeakyReLU(), 
-        #     nn.Linear(in_dim, out_dim)
-        # )
 
-    def forward(self, x):
-        x = self.encoder(x)
-        # x = self.decoder(x)
-        
+    def forward(self, xin):
+        x = self.encoder(xin)
         return x
     
-
-
 def train(model: torch.nn.Module, train_loader:torch.utils.data.DataLoader, optimizer:torch.optim, loss_fn) -> int:
     model.train()
     train_loss = []
     for batch_idx, (inputs, target) in enumerate(train_loader):
-      
-        inputs, target = inputs.to(device), target.to(device)
-        
+        inputs, target = inputs.to(device), target.to(device)        
         
         output = model(inputs.float())
         loss_vector = loss_fn(output.float(), target.float())
@@ -210,10 +197,10 @@ def test(model: torch.nn.Module, experiment: PreProcessing, test_loss_fn:torch.o
     batch_ave = 0
     with torch.no_grad():
         for inputs, target in experiment.dataloader.test_loader:
-            
             inputs, target = inputs.to(device), target.to(device)
 
             output = model(inputs.float())
+            
             np_output = output.cpu().numpy()
             headers = experiment.data_pp.encoded_features_order
             gen_data = pd.DataFrame(np_output, columns=headers)
@@ -295,8 +282,18 @@ class Training:
         print(f"Training on {self.num_epochs} epochs completed in {(end-start)/60} minutes.\n")
 
         # Calculate and save the L1 distance on each encoded feature on Sanitized and Original Data, to compare and see whether the training got the distance closer
-        san_loss_fn = torch.nn.L1Loss(reduction='none')
+        san_loss_fn = torch.nn.L1Loss(reduction='none')       
+        # Need to remove 'sex' column to calculate L1 distance
         for inputs, target in experiment.dataloader.test_loader:
+            
+            # TODO Issue here is target contains sex=male and sex=female, hence 55 features
+            data = pd.DataFrame(target, columns=self.experiment_x.dataloader.headers_with_sensitive)
+            if args.attr_to_gen.lower() is not 'none':
+                for col in data.columns:
+                    if args.attr_to_gen.lower() in col.lower():
+                        data.drop([col], axis=1, inplace=True)
+            target = torch.tensor(data.values.astype(np.float32))
+            
             loss_dim_batch = san_loss_fn(inputs.float(), target.float())
             loss_dim = loss.mean(dim=0)
             loss_per_dim = sum(loss_per_dim_per_batch)/len(loss_per_dim_per_batch)
@@ -304,24 +301,25 @@ class Training:
             break
         is_better = []
         how_much = []
-
+        better_count = 0
         for i, loss in enumerate(loss_per_dim):
             if self.lowest_loss_per_dim[i] < loss:
                 is_better.append(True)
                 how_much.append((loss.item() - self.lowest_loss_per_dim[i]))
+                better_count = better_count+1
             else:
                 is_better.append(False)
                 how_much.append((loss.item() - self.lowest_loss_per_dim[i]))
-            import pdb;pdb.set_trace()
         
         is_better_df = pd.DataFrame([is_better,how_much], columns=self.experiment_x.data_pp.encoded_features_order)
         # Save model meta data in txt file
-        with open(path_to_exp+f"{str.replace(time.ctime(), ' ', '_')}-{a}.txt", 'w+') as f:
+        with open(path_to_exp+f"{str.replace(time.ctime(), ' ', '_')}.txt", 'w+') as f:
             f.write(f"Epochs: {self.num_epochs} \n")
             f.write(f"Lowest lost Generated: {self.lowest_loss_per_dim} \n")
             f.write(f"Loss from sanitized data: {self.sanitized_loss.numpy().tolist()} \n")
             f.write(f"Is L1 better?\n  \n")
             f.write(is_better_df.to_string(index=False))
+            f.write(f"Total of {better_count} / {len(is_better_df.columns)} are now closer to original data (L1 distance).")
             f.write(f"\n \n Learning Rate: {self.learning_rate} \n")
             f.write(f"Number Epochs: {self.num_epochs} \n")
             f.write(f"weight decay: {self.wd}\n")
@@ -338,22 +336,23 @@ class Training:
         '''
             This will calculate (1) diversity within generated dataset, 
                 and the (2) damage the generated dataset has
-                    Those will be compared to both the original and sanitized            
+                    Those will be compared to both the original and sanitized        
+
+            ISSUE -> Sanitized data does not have sensitive attribute, hence fewer dimensions    
         '''
-        # Need to created a Encoder object with original data justin order to have matching columns when calculating damage and Diversity
-        print(f"Starting calculation Three-way of Diversity, Damage and visual: {self.dim_red}")
+        # Need to created a Encoder object with original data just in order to have matching columns when calculating damage and Diversity
+        print(f"Starting calculation Three-way of Diversity, Damage and graphs: {self.dim_red}")
         start = time.time()
 
         
         # TODO loop through those 3 paragraphs
         # Sanitized data == model input data
         test_san = self.experiment_x.dataloader.a[self.experiment_x.dataloader.train_size:,:] 
-        headers = self.experiment_x.data_pp.encoded_features_order
+        headers = self.experiment_x.dataloader.headers_wo_sensitive
         san_data = pd.DataFrame(test_san, columns=headers)
         san_data.to_csv(model_saved+'junk_test_san.csv', index=False)
         san_data_rough = pd.read_csv(model_saved+'junk_test_san.csv')
         self.san_encoder = d.Encoder(san_data_rough)
-        self.san_encoder.load_parameters(path_to_exp, prmFile="parameters_data.prm")
         pd_san_data = self.san_encoder.df
 
         # Original data == Model's target data
@@ -363,7 +362,7 @@ class Training:
         og_data.to_csv(model_saved+'junk_test_og.csv',  index=False)
         og_data_rough = pd.read_csv(model_saved+'junk_test_og.csv')
         self.og_encoder = d.Encoder(og_data_rough)
-        self.og_encoder.load_parameters(path_to_exp, prmFile="parameters_data.prm")
+        self.og_encoder.load_parameters(path_to_exp, prmFile=f"{args.input_dataset}_parameters_data.prm")
         pd_og_data = self.og_encoder.df
 
         #Generated Data
@@ -371,7 +370,7 @@ class Training:
         test_gen.to_csv(model_saved+'junk_test_gen.csv', index=False)
         gen_data_rough = pd.read_csv(model_saved+'junk_test_gen.csv')
         self.gen_encoder = d.Encoder(gen_data_rough)
-        self.gen_encoder.load_parameters(path_to_exp, prmFile="parameters_data.prm")
+        self.gen_encoder.load_parameters(path_to_exp, prmFile=f"{args.input_dataset}_parameters_data.prm")
         pd_gen_data = self.gen_encoder.df
 
         test_data_dict = {}
@@ -386,61 +385,60 @@ class Training:
 
         diversities = []
         saver_dict = {}
-        for key in test_data_dict:
-            # Save all damage and diversity results
-            saver_dict[key] = r.DiversityDamageResults(resultDir=path_to_eval, result_file=f"cat_damage_{key}.csv",  num_damage=f"numerical_damage_{key}.csv", overwrite=True)
+        # for key in test_data_dict:
+        #     # Save all damage and diversity results
+        #     saver_dict[key] = r.DiversityDamageResults(resultDir=path_to_eval, result_file=f"cat_damage_{key}.csv",  num_damage=f"numerical_damage_{key}.csv", overwrite=True)
 
-            div = at.Diversity()
-            diversity = div(test_data_dict[key][0], f"original_{key.split('_')[0]}")
-            diversity.update(div(test_data_dict[key][1], f"transformed_{key.split('_')[1]}"))
-            diversities.append(diversity)
+        #     div = at.Diversity()
+        #     diversity = div(test_data_dict[key][0], f"original_{key.split('_')[0]}")
+        #     diversity.update(div(test_data_dict[key][1], f"transformed_{key.split('_')[1]}"))
+        #     diversities.append(diversity)
         # DECODE DATA
         # Sanitized data == model input data
-        self.san_encoder.inverse_transform()
-        pd_san_data = self.san_encoder.df
-        # Original data == Model's target data
-        self.og_encoder.inverse_transform()
-        pd_og_data = self.og_encoder.df
-        # Generated data
-        self.gen_encoder.inverse_transform()
-        pd_gen_data = self.gen_encoder.df
-        pd_gen_data.to_csv(f"{model_saved}lowest-loss-generated-data_ep{self.lowest_loss_ep}.csv",  index=False)
+        # self.san_encoder.inverse_transform()
+        # pd_san_data = self.san_encoder.df
+        # # Original data == Model's target data
+        # self.og_encoder.inverse_transform()
+        # pd_og_data = self.og_encoder.df
+        # # Generated data
+        # self.gen_encoder.inverse_transform()
+        # pd_gen_data = self.gen_encoder.df
+        # pd_gen_data.to_csv(f"{model_saved}lowest-loss-generated-data_ep{self.lowest_loss_ep}.csv",  index=False)
 
         #TODO Figure out how to update a dict
-        test_data_dict['orig_san'] = [pd_og_data,  pd_san_data]
-        test_data_dict['san_gen'] = [ pd_san_data, pd_gen_data]
-        test_data_dict['gen_orig'] = [pd_gen_data, pd_og_data]
+        # test_data_dict['orig_san'] = [pd_og_data,  pd_san_data]
+        # test_data_dict['san_gen'] = [ pd_san_data, pd_gen_data]
+        # test_data_dict['gen_orig'] = [pd_gen_data, pd_og_data]
         
-        dam_dict = {}
-        i = 0
+        # dam_dict = {}
+        # i = 0
 
         # Calculation of Damage; Damage is for each feature, compared across two datasets
-        for key in test_data_dict:
-            dam = at.Damage()
+        # for key in test_data_dict:
+        #     dam = at.Damage()
 
-            d_cat, d_num = dam(original=test_data_dict[key][0], transformed=test_data_dict[key][1])
-            dam_dict[key] = [d_cat, d_num]
+        #     d_cat, d_num = dam(original=test_data_dict[key][0], transformed=test_data_dict[key][1])
+        #     dam_dict[key] = [d_cat, d_num]
 
-            saver_dict[key].add_results(diversity=diversities[i], damage_categorical=d_cat, damage_numerical=d_num, epoch=self.num_epochs, alpha_=args.alpha)
-            i = i +1
+        #     saver_dict[key].add_results(diversity=diversities[i], damage_categorical=d_cat, damage_numerical=d_num, epoch=self.num_epochs, alpha_=args.alpha)
+        #     i = i +1
             
-            # Calculate dimention reduction is required
-            if (self.dim_red).lower() != 'none':
-                # each color is each label as specific
-                dr = at.DimensionalityReduction()
-                dr.clusters_original_vs_transformed_plots({key.split('_')[0]: test_data_dict[key][0], key.split('_')[1]: test_data_dict[key][1]},labels=test_data_dict[key][0]['sex'], dimRedFn=self.dim_red, savefig=path_to_eval+f"label_{key}_{self.dim_red}.png")
+        #     # Calculate dimention reduction is required
+        #     if (self.dim_red).lower() != 'none':
+        #         # each color is each label as specific
+        #         dr = at.DimensionalityReduction()
+        #         dr.clusters_original_vs_transformed_plots({key.split('_')[0]: test_data_dict[key][0], key.split('_')[1]: test_data_dict[key][1]},labels=test_data_dict[key][0]['sex'], dimRedFn=self.dim_red, savefig=path_to_eval+f"label_{key}_{self.dim_red}.png")
 
-                # Each color is a dataset
-                dr.original_vs_transformed_plots({key.split('_')[0]: test_data_dict[key][0], key.split('_')[1]: test_data_dict[key][1]}, dimRedFn=self.dim_red, savefig=path_to_eval+f"dataset_{key}_{self.dim_red}.png")
+        #         # Each color is a dataset
+        #         dr.original_vs_transformed_plots({key.split('_')[0]: test_data_dict[key][0], key.split('_')[1]: test_data_dict[key][1]}, dimRedFn=self.dim_red, savefig=path_to_eval+f"dataset_{key}_{self.dim_red}.png")
 
-        os.remove(model_saved+'junk_test_og.csv')
-        os.remove(model_saved+'junk_test_san.csv')
-        os.remove(model_saved+'junk_test_gen.csv')
+        # os.remove(model_saved+'junk_test_og.csv')
+        # os.remove(model_saved+'junk_test_san.csv')
+        # os.remove(model_saved+'junk_test_gen.csv')
         end = time.time()
         
 
     def gen_loss_graphs(self):
-        
         a = f'adult_{self.num_epochs}ep'
         x_axis = np.arange(1,self.num_epochs+1)
         plt.figure()
@@ -458,35 +456,30 @@ class Training:
         plt.savefig(path_to_exp+f"{args.exp_name}-{a}_train-loss.png")
     
     def my_metrics(self):
-        # Std-dev and mean for each encoded columns
-        self.og_encoder.fit_transform()
-        self.san_encoder.fit_transform()
-        self.gen_encoder.fit_transform()
+        # # Std-dev and mean for each encoded columns
+        # self.og_encoder.fit_transform()
+        # self.san_encoder.fit_transform()
+        # self.gen_encoder.fit_transform()
         headers = self.san_encoder.df.columns
 
-        stats = {}
-        a = self.og_encoder.df.describe(), 
+        a = self.og_encoder.df.describe()
         b = self.san_encoder.df.describe()
         c = self.gen_encoder.df.describe()
         path_base = path_to_exp+'base_metrics/'
         os.mkdir(path_base)
         
-        ab = a==b
-        ab.to_csv(path_base+"original_sanitized.csv")
-        bc = b==c
-        bc.to_csv(path_base+"sanitized_generated.csv")
-        ca = c==a
-        ca.to_csv(path_base+"generated_original.csv")
+        a.to_csv(path_base+"original.csv")
+        b.to_csv(path_base+"sanitized.csv")
+        c.to_csv(path_base+"generated.csv")
 
 if __name__ == '__main__':
 
     # Setup folders and global variables
     parser = argparse.ArgumentParser()
     args, path_to_exp, model_saved = utils.parse_arguments(parser)
-    params_file = args.params
 
     # Pre Process Data
-    experiment = PreProcessing(args.params)
+    experiment = PreProcessing()
 
     # Create training instance
     training_instance = Training(experiment)
@@ -494,12 +487,12 @@ if __name__ == '__main__':
     # Train the AE
     training_instance.train_model()
 
-    # Run Metrics Calculation
+    # Run Damage, Diversity and dimension reduction graphs Calculation
     training_instance.post_training_metrics()
 
     # Generate test and train loss graphs (L1)
     training_instance.gen_loss_graphs()
-    # training_instance.my_metrics()
+    training_instance.my_metrics()
 
     print(f"\n \n Experiment can be found under {path_to_exp} \n \n ")
 
