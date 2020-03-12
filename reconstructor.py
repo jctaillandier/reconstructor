@@ -5,7 +5,7 @@ from Modules import datasets as d
 from Modules import results as r
 
 # from Stats import Plots as Pl
-import csv, sys, yaml, math, json, tqdm, time, torch, random, os.path, warnings, argparse, importlib, torchvision 
+import csv, sys, math, json, tqdm, time, torch, random, os.path, warnings, argparse, importlib, torchvision 
 import numpy as np
 import pdb
 import pandas as pd
@@ -204,9 +204,7 @@ def test(model: torch.nn.Module, experiment: PreProcessing, test_loss_fn:torch.o
 
             # here I keep values for L1 distance on each dimensions
             loss = test_loss_fn(output.float(), target.float())
-            test_loss.append(loss.mean(dim=0))
-
-    return test_loss, gen_data 
+    return loss.mean(dim=0), gen_data 
 
 class Training:
     def __init__(self, experiment_x: PreProcessing, model_type:str='autoencoder'):
@@ -253,9 +251,10 @@ class Training:
             self.ave_train_loss.append(batch_ave_tr_loss.cpu().numpy().item())
 
             # Check test set metrics (+ generate data if last epoch )
-            loss_per_dim_per_batch, model_gen_data = test(self.model, self.experiment_x, self.test_loss_fn)
-            loss_per_dim = sum(loss_per_dim_per_batch)/len(loss_per_dim_per_batch)
-            loss = sum(loss_per_dim)/len(loss_per_dim)
+            loss_per_dim_per_epoch, model_gen_data = test(self.model, self.experiment_x, self.test_loss_fn)
+            loss = sum(loss_per_dim_per_epoch)/len(loss_per_dim_per_epoch)
+            # To save as lowest loss averaged over all dim, for loss graph,
+            #   NOT for comparison for each dimensions
             if loss < lowest_test_loss:
                 if os.path.isfile(model_saved+f"lowest-test-loss-model_ep{self.lowest_loss_ep}.pth"):
                     os.remove(model_saved+f"lowest-test-loss-model_ep{self.lowest_loss_ep}.pth")
@@ -263,13 +262,13 @@ class Training:
                 fm = open(model_saved+f"lowest-test-loss-model_ep{epoch}.pth", "wb")
                 torch.save(self.model.state_dict(), fm)
                 fm.close()
-                self.lowest_loss_per_dim = loss_per_dim.numpy().tolist()
+                self.lowest_loss_per_dim = loss_per_dim_per_epoch.numpy().tolist()
                 self.lowest_loss_ep = epoch
                 # Then we want this to be used as generated data
                 self.best_generated_data = model_gen_data
 
             loss_df = pd.DataFrame([self.lowest_loss_per_dim], columns=self.experiment_x.data_pp.encoded_features_order)
-            print(f"Epoch {epoch} complete. Test Loss: {self.lowest_loss_per_dim} \n")      
+            print(f"Epoch {epoch} complete. Test Loss on epoch: {loss} \n")      
             self.test_accuracy.append(loss)#/len(self.experiment_x.dataloader.test_loader.dataset))
 
         fm = open(model_saved+f"final-model_{self.num_epochs}ep.pth", "wb")
@@ -316,14 +315,14 @@ class Training:
         is_better = []
         how_much = []
         better_count = 0
-        for i, loss in enumerate(loss_per_dim):
+        for i, loss in enumerate(self.sanitized_loss):
             if self.lowest_loss_per_dim[i] < loss:
                 is_better.append(True)
-                how_much.append((loss.item() - self.lowest_loss_per_dim[i]))
+                how_much.append((loss - self.lowest_loss_per_dim[i]))
                 better_count = better_count+1
             else:
                 is_better.append(False)
-                how_much.append((loss.item() - self.lowest_loss_per_dim[i]))
+                how_much.append((loss - self.lowest_loss_per_dim[i]))
                 
         if args.input_dataset == 'gansan':
             is_better_df = pd.DataFrame([is_better,how_much], columns=self.experiment_x.data_pp.encoded_features_order)
@@ -332,9 +331,9 @@ class Training:
 
         # Save model meta data in txt file
         with open(path_to_exp+f"{str.replace(time.ctime(), ' ', '_')}.txt", 'w+') as f:
-            f.write(f"Epochs: {self.num_epochs} \n")
-            f.write(f"Lowest lost Generated: {self.lowest_loss_per_dim} \n")
-            f.write(f"Loss from sanitized data: {self.sanitized_loss.numpy().tolist()} \n")
+            f.write(f"Epochs: {self.num_epochs} \n \n")
+            f.write(f"Lowest lost Generated:\n {self.lowest_loss_per_dim} \n \n")
+            f.write(f"Loss from sanitized data: \n{self.sanitized_loss.numpy().tolist()} \n")
             f.write(f"\nTotal of {better_count} / {len(is_better_df.columns)} are now closer to original data (L1 distance).")
             f.write(f"\n \n Learning Rate: {self.learning_rate} \n")
             f.write(f"Number Epochs: {self.num_epochs} \n")

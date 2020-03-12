@@ -8,7 +8,6 @@ from sklearn.preprocessing import MinMaxScaler
 import pickle
 
 
-
 class Encoder:
     """
     Class to handle all the preprocessing steps before passing the dataset to pytorch
