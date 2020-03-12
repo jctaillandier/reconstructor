@@ -268,7 +268,7 @@ class Training:
                 self.best_generated_data = model_gen_data
 
             loss_df = pd.DataFrame([self.lowest_loss_per_dim], columns=self.experiment_x.data_pp.encoded_features_order)
-            print(f"Epoch {epoch} complete. Test Loss on epoch: {loss} \n")      
+            print(f"Epoch {epoch} complete. Test Loss on epoch: {loss_per_dim_per_epoch} \n")      
             self.test_accuracy.append(loss)#/len(self.experiment_x.dataloader.test_loader.dataset))
 
         fm = open(model_saved+f"final-model_{self.num_epochs}ep.pth", "wb")
@@ -316,18 +316,17 @@ class Training:
         how_much = []
         better_count = 0
         for i, loss in enumerate(self.sanitized_loss):
+            how_much.append((loss.item() - self.lowest_loss_per_dim[i]))
             if self.lowest_loss_per_dim[i] < loss:
                 is_better.append(True)
-                how_much.append((loss - self.lowest_loss_per_dim[i]))
                 better_count = better_count+1
             else:
                 is_better.append(False)
-                how_much.append((loss - self.lowest_loss_per_dim[i]))
                 
         if args.input_dataset == 'gansan':
-            is_better_df = pd.DataFrame([is_better,how_much], columns=self.experiment_x.data_pp.encoded_features_order)
+            is_better_df = pd.DataFrame([self.sanitized_loss, self.lowest_loss_per_dim, is_better,how_much], columns=self.experiment_x.data_pp.encoded_features_order)
         else: 
-            is_better_df = pd.DataFrame([is_better,how_much], columns=self.experiment_x.data_pp.cols_order)
+            is_better_df = pd.DataFrame([self.sanitized_loss, self.lowest_loss_per_dim, is_better,how_much], columns=self.experiment_x.data_pp.cols_order)
 
         # Save model meta data in txt file
         with open(path_to_exp+f"{str.replace(time.ctime(), ' ', '_')}.txt", 'w+') as f:
