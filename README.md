@@ -2,10 +2,12 @@
 
 - Using Auto Encoder
 
-- Currently implemented 
+- Currently takes in as input sanitized data from
+        - gansan:
+        - disparate impact remover : https://github.com/IBM/AIF360/blob/master/aif360/algorithms/preprocessing/disparate_impact_remover.py
+        -  
 
 - Loss used is L1 distance between autoencoder output and original image (for both test and train)
 
-- If possible, test set will pass as one batch, and in last epoch, will save generated images in Experiment folder
 
 

@@ -39,7 +39,7 @@ class PreProcessing:
 
         elif args.input_dataset == 'gansan':    
             import_path = "./data/full_a=0_E=19.csv"
-            label_path = "./data/full_original.csv"
+            label_path = "./data/gansan_original.csv"
         print(f"\n Running on {args.input_dataset} dataset input. \n")
         
         self.attr_to_gen = args.attr_to_gen
@@ -484,12 +484,7 @@ class Training:
         b.to_csv(path_base+"sanitized.csv")
         c.to_csv(path_base+"generated.csv")
 
-if __name__ == '__main__':
-
-    # Setup folders and global variables
-    parser = argparse.ArgumentParser()
-    args, path_to_exp, model_saved = utils.parse_arguments(parser)
-    path_base = path_to_exp+'distance_comparison/'
+def main():
 
     # Pre Process Data
     experiment = PreProcessing()
@@ -509,3 +504,10 @@ if __name__ == '__main__':
 
     print(f"\n \n Experiment can be found under {path_to_exp} \n \n ")
 
+# Setup folders and global variables
+parser = argparse.ArgumentParser()
+args, path_to_exp, model_saved = utils.parse_arguments(parser)
+path_base = path_to_exp+'distance_comparison/'
+
+# Launch
+main()
