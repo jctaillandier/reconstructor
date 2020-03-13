@@ -5,12 +5,12 @@ parser = argparse.ArgumentParser()
 # 1. Choose two HP to iterate over
 # 2. Launch python3 reconstructor.py(Hp1, Hp2)
 
-lrs = ["0.00005", "0.000025", "0.00001", "0.0000075", "0.000005", "0.0000025"]
-bses = [128, 264, 512, 1024, 2048]
+lrs = [0.000025, 0.00001, 0.0000075, 0.000005, 0.000001]
+bses = [64, 128, 254, 512]
 input_dataset = 'disp_impact'
 
 args = parser.parse_args()
-total_exp = len(args.learning_rate)+len(args.batch_size)
+total_exp = len(lrs)*len(bses)
 done = 1
 for lr in lrs:
     for bs in bses:
