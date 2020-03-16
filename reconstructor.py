@@ -38,7 +38,7 @@ class PreProcessing:
             label_path = "./data/disp_impact_remover_og.csv"
 
         elif args.input_dataset == 'gansan':    
-            import_path = "./data/full_a=0_E=19.csv"
+            import_path = "./data/0a_no1_e20.csv"
             label_path = "./data/gansan_original.csv"
         print(f"\n Running on {args.input_dataset} dataset input. \n")
         
