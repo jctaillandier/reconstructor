@@ -329,6 +329,7 @@ class Training:
         with open(path_to_exp+f"metadata.txt", 'w+') as f:
             f.write(f"Epochs: {self.num_epochs} \n \n")
             f.write(f"Total of {better_count} / {len(is_better_df.columns)} are now closer to original data (L1 distance). \n \n")
+            f.write(f"Epoch of lowest loss: {self.lowest_loss_ep} \n \n")
             f.write(f"Lowest lost Generated:\n {self.lowest_loss_per_dim} \n \n")
             f.write(f"Loss from sanitized data: \n{self.sanitized_loss} \n")
             f.write(f"\n \n Learning Rate: {self.learning_rate} \n")
@@ -339,8 +340,6 @@ class Training:
             f.write(f"self.self.optimizer: {str(self.optimizer)}\n")
             f.write(f"Model Architecture: {self.model}\n")
             f.write(f"Training completed in: {(end-start)/60:.2f} minutes\n")
-            f.write(f"Train loss values: {str(self.ave_train_loss)} \n")
-            f.write(f"Test loss values: {str(self.test_accuracy)}\n")
 
         os.mkdir(path_base)
         is_better_df.to_csv(path_base+f"reconstruction_appraisal.csv", index=False)
