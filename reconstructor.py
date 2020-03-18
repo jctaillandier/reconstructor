@@ -15,7 +15,6 @@ from torch.utils.data import *
 import matplotlib.pyplot as plt
 from torch.utils import data as td
 from torch.autograd import Variable
-from joblib import Parallel, delayed
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 CPU_DEVICE = torch.device("cpu")
