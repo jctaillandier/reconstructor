@@ -1,13 +1,19 @@
 from typing import List
 import argparse, os
 
+def parse_arguments(parser):
+    parser.add_argument('-in','--input_dataset', type=str, default='gansan', help='Dataset to use as input. Currently support `gansan` and `disp_impact`', required=True, choices=['gansan', 'disp_impact'])
+    args = parser.parse_args()
+    return args
+    
 parser = argparse.ArgumentParser()
+args = parse_arguments(parser)
 # 1. Choose two HP to iterate over
-# 2. Launch python3 reconstructor.py(Hp1, Hp2)
+# 2. Launch python3 reconstructor.py 
 
 lrs = [0.000001]
 bses = [254, 512]
-input_dataset = 'disp_impact'
+input_dataset = args
 
 args = parser.parse_args()
 total_exp = len(lrs)*len(bses)

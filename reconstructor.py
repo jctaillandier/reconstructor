@@ -467,7 +467,7 @@ class Training:
         plt.xlabel("Epochs")
         plt.ylabel("L1 Loss")
         plt.title("Train Loss")
-        plt.savefig(path_to_exp+f"{args.exp_name}-{a}_train-loss.png")
+        plt.savefig(path_to_exp+f"{args.exp_name}-{a}_{args.learning_rate}lr_{args.batch_size}.png")
     
     def pandas_describe(self):
         '''
