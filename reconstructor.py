@@ -330,6 +330,7 @@ class Training:
             f.write(f"Epochs: {self.num_epochs} \n \n")
             f.write(f"Total of {better_count} / {len(is_better_df.columns)} are now closer to original data (L1 distance). \n \n")
             f.write(f"Epoch of lowest loss: {self.lowest_loss_ep} \n \n")
+            f.write(f"Average lowest loss: {sum(self.lowest_loss_per_dim)/len(self.lowest_loss_per_dim)}{self.lowest_loss_ep} \n \n")
             f.write(f"Lowest lost Generated:\n {self.lowest_loss_per_dim} \n \n")
             f.write(f"Loss from sanitized data: \n{self.sanitized_loss} \n")
             f.write(f"\n \n Learning Rate: {self.learning_rate} \n")
