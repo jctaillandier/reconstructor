@@ -38,7 +38,7 @@ class PreProcessing:
         elif args.input_dataset == 'gansan':    
             import_path = "./data/0a_no1_e20.csv"
             label_path = "./data/gansan_original.csv"
-        print(f"\n Running on {args.input_dataset} dataset input. \n")
+        print(f"\n Launching attack on {args.input_dataset} dataset. \n")
         
         self.attr_to_gen = args.attr_to_gen
 
@@ -241,8 +241,9 @@ class Training:
         self.best_generated_data = []
         self.lowest_loss_ep = -1
         self.lowest_loss_per_dim = []
-        for epoch in range(self.num_epochs):
-            print(f"Epoch {epoch+1} of {self.num_epochs} running...")
+
+        for epoch in tqdm.tqdm(range(self.num_epochs), desc=f"lr={args.learning_rate}, bs={args.batch_size}->"):
+            # print(f"Running Epoch {epoch+1} / {self.num_epochs} for lr={args.learning_rate}, bs={args.batch_size}")
 
             # Iterate on train set with SGD (adam)
             batch_ave_tr_loss = train(self.model,self.experiment_x.dataloader.train_loader, self.optimizer, self.train_loss)
@@ -266,8 +267,8 @@ class Training:
                 self.best_generated_data = model_gen_data
 
             loss_df = pd.DataFrame([self.lowest_loss_per_dim], columns=self.experiment_x.data_pp.encoded_features_order)
-            print(f"Epoch {epoch} complete.\n Test Loss on epoch: {loss_per_dim_per_epoch.numpy().tolist()} \n")   
-            print(f"Average Loss: {sum(loss_per_dim_per_epoch)/len(loss_per_dim_per_epoch)} \n ")   
+            # print(f"Epoch {epoch} complete.\n Test Loss on epoch: {loss_per_dim_per_epoch.numpy().tolist()} \n")   
+            # print(f"Average Loss on epoch {epoch}: {sum(loss_per_dim_per_epoch)/len(loss_per_dim_per_epoch)} \n ")   
             self.test_accuracy.append(loss)#/len(self.experiment_x.dataloader.test_loader.dataset))
 
         fm = open(model_saved+f"final-model_{self.num_epochs}ep.pth", "wb")
