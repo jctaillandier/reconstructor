@@ -10,7 +10,7 @@ def parse_arguments(parser):
     return args
 
 def launch(bs: int, lr:float, ep:int):
-    os.system(f"python3 reconstructor.py -ep={ep} -in={input_dataset} -lr={lr} -bs={bs} -n=\'grid-search\'")
+    os.system(f"python3 reconstructor.py -ep={ep} -ag=sex -in={input_dataset} -lr={lr} -bs={bs} -n=\'grid-search\'")
 
 parser = argparse.ArgumentParser()
 args = parse_arguments(parser)
