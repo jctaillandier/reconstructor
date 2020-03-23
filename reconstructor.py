@@ -108,17 +108,21 @@ class My_dataLoader:
         '''
         self.batch_size = batch_size
         self.train_size = n_train
+        self.cols_with_sensitive = df_data.columns
         self.data_with_sensitive = df_data
         self.label_with_sensitive = df_label
+
         # Remove Sensitive attribute from input since we want to infer it 
         # Assumption is that sanitizer will not provide it 
-        # self.out_dim_to_add = 0 
+        # REMOVED self.col_rm columns 
         self.df_data = df_data
         self.df_label = df_label
+        self.col_rm = 0
         if args.attr_to_gen.lower() is not 'none':
             for col in df_data.columns:
                 if args.attr_to_gen.lower() in col.lower():
-                    df_data.drop([col], axis=1, inplace=True)
+                    self.df_data = self.df_data.drop([col], axis=1)
+                    self.col_rm = self.col_rm + 1
         
                     # self.out_dim_to_add = self.out_dim_to_add + 1
         self.headers_wo_sensitive =  df_data.columns   
@@ -172,6 +176,7 @@ def train(model: torch.nn.Module, train_loader:torch.utils.data.DataLoader, opti
         inputs, target = inputs.to(device), target.to(device)        
         
         output = model(inputs.float())
+        
         loss_vector = loss_fn(output.float(), target.float())
         
         train_loss.append(sum(loss_vector))
@@ -234,6 +239,7 @@ class Training:
         self.dim_red = args.dim_red
 
         self.in_dim = experiment_x.dataloader.trdata.shape[1]
+        # out dim = in dim + columns we removed if attr_to_gen
         self.out_dim = experiment_x.dataloader.trlabels.shape[1]
 
         if model_type == 'autoencoder':
@@ -257,14 +263,13 @@ class Training:
 
         for epoch in tqdm.tqdm(range(self.num_epochs), desc=f"lr={args.learning_rate}, bs={args.batch_size}->"):
             # print(f"Running Epoch {epoch+1} / {self.num_epochs} for lr={args.learning_rate}, bs={args.batch_size}")
-
             # Iterate on train set with SGD (adam)
             batch_ave_tr_loss = train(self.model,self.experiment_x.dataloader.train_loader, self.optimizer, self.train_loss)
             self.ave_train_loss.append(batch_ave_tr_loss.cpu().numpy().item())
-
             # Check test set metrics (+ generate data if last epoch )
             loss_per_dim_per_epoch, model_gen_data = test(self.model, self.experiment_x, self.test_loss_fn)
             loss = sum(loss_per_dim_per_epoch)/len(loss_per_dim_per_epoch)
+
             # To save as lowest loss averaged over all dim, for loss graph,
             #   NOT for comparison for each dimensions
             if loss < lowest_test_loss:
@@ -292,15 +297,9 @@ class Training:
 
         # Calculate and save the L1 distance on each encoded feature on Sanitized and Original Data, to compare and see whether the training got the distance closer. We include the sensitive attribute.
         san_loss_fn = torch.nn.L1Loss(reduction='none')
-        # if args.input_dataset != 'gansan':
         og_test_data = torch.tensor(self.experiment_x.dataloader.data_with_sensitive.values[self.experiment_x.dataloader.train_size:,:])
         og_test_labels = torch.tensor(self.experiment_x.dataloader.label_with_sensitive.values[self.experiment_x.dataloader.train_size:,:])
         self.og_test_dataset = torch.utils.data.TensorDataset(og_test_data, og_test_labels)
-
-        # else:
-        #     og_test_data = torch.tensor(self.experiment_x.dataloader.data_with_sensitive.values[self.experiment_x.dataloader.train_size:,:])
-        #     og_test_labels = torch.tensor(self.experiment_x.dataloader.label_with_sensitive.values[self.experiment_x.dataloader.train_size:,:])
-        #     self.og_test_dataset = torch.utils.data.TensorDataset(og_test_data, og_test_labels)
 
         og_dataloader = torch.utils.data.DataLoader(
             self.og_test_dataset,
@@ -309,12 +308,13 @@ class Training:
             pin_memory=False
         )       
         for inputs, target in og_dataloader:
-            data = pd.DataFrame(target, columns=self.experiment_x.dataloader.data_with_sensitive.columns)
-            if args.attr_to_gen.lower() is not 'none':
-                for col in data.columns:
-                    if args.attr_to_gen.lower() in col.lower():
-                        data.drop([col], axis=1, inplace=True)
-            target = torch.tensor(data.values.astype(np.float32))
+            # data = pd.DataFrame(target, columns=self.experiment_x.dataloader.cols_with_sensitive)
+            # if args.attr_to_gen.lower() is not 'none':
+            #     for col in data.columns:
+            #         if args.attr_to_gen.lower() in col.lower():
+            #             data.drop([col], axis=1, inplace=True)
+            data = self.experiment_x.dataloader.data_with_sensitive.values[self.experiment_x.dataloader.train_size:,:]
+            target = torch.tensor(data.astype(np.float32))
             loss_dim_batch = san_loss_fn(inputs.float(), target.float())
             loss_dim = loss_dim_batch.mean(dim=0)
             self.sanitized_loss = loss_dim.numpy().tolist()
@@ -493,8 +493,8 @@ class Training:
             Also saves Generated data with encoded columns and (if gansan) original columns
         '''
 
-        test_san = self.experiment_x.dataloader.df_data.values[self.experiment_x.dataloader.train_size:,:] 
-        headers = self.experiment_x.dataloader.headers_wo_sensitive
+        test_san = self.experiment_x.dataloader.data_with_sensitive.values[self.experiment_x.dataloader.train_size:,:] 
+        headers = self.experiment_x.dataloader.cols_with_sensitive
         self.san_data = pd.DataFrame(test_san, columns=headers)
 
         test_og = self.experiment_x.dataloader.df_label.values[self.experiment_x.dataloader.train_size:,:]
