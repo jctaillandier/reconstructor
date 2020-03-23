@@ -8,4 +8,4 @@
 #SBATCH --output=./%x-%j.out
 #SBATCH --mail-type=ALL
 source ~/gpu_ready_pyenv/bin/activate
-python3 ./reconstructor.py -n adult -bs 2048 -ep 5000 -dr='tsne'
+python3 ./reconstructor.py -bs 4096 -ep 5000 -in=gansan -a=0.9875
