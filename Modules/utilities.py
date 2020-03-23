@@ -60,13 +60,14 @@ def parse_arguments(parser):
     parser.add_argument('-wd','--weight_decay', type=float, default=0, help='Value for L2 penalty known as Weight Decay. Has not shown any value in this use case', required=False)
     parser.add_argument('-lr','--learning_rate', type=float, default=1e-5, help='Learning rate on which we will optimize with Adam. Better performance are show with lr < 1e-4', required=False)
     parser.add_argument('-dr','--dim_red', type=str, default='none', help='Dimension reduction. Choose from pca, tsne, umap, svp or none. Where pca is quicker to compute', required=False, choices=['none', 'umap', 'tsne', 'svp','pca'])
-    parser.add_argument('-a','--alpha', type=float, default=0, help='Value of alpha used when  sanitizing the dataset we use as input.', required=False)
+    parser.add_argument('-a','--alpha', type=float, default=0.9875, help='Value of alpha used when  sanitizing the dataset we use as input.', required=False, choices=[0,0.25,0.8,0.9875])
     parser.add_argument('-ag','--attr_to_gen', type=str, default='none', help='Attribute that we want to remove from input if present, and have model infer; out_dim=in_dim+2', required=False)
     parser.add_argument('-in','--input_dataset', type=str, default='gansan', help='Dataset to use as input. Currently support `gansan` and `disp_impact`', required=True, choices=['gansan', 'disp_impact'])
 
     # parser.add_argument('--discriminator_size', type=tuple, default=(256, 128, 1), help='The dimension size of the discriminator. (default value: (256, 128, 1))')
     args = parser.parse_args()
-    exp_name = f"{args.input_dataset}_{args.epochs}ep_{args.batch_size}bs_{args.learning_rate}lr_" +args.exp_name
+    if_alpha = f"_{args.alpha}a" if args.input_dataset == 'gansan' else ""
+    exp_name = f"{args.input_dataset}{if_alpha}_{args.epochs}ep_{args.batch_size}bs_{args.learning_rate}lr_" +args.exp_name
     path_to_exp = check_dir_path(f'./experiments/{exp_name}/')
     os.mkdir(path_to_exp)
     model_saved = path_to_exp+'models_data/'

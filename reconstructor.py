@@ -36,9 +36,22 @@ class PreProcessing:
             label_path = "./data/disp_impact_remover_og.csv"
 
         elif args.input_dataset == 'gansan':    
-            import_path = "./data/0a_no1_e20.csv"
+            """
+                Load the sanitized data from gansna with different values of alpha
+                alpha=0 means no protection, a=0.9875 is optimal, ie: top protection
+            """
+            if args.alpha == 0.25:
+                import_path = "./data/25a_no1_e20.csv"
+            elif args.alpha == 0.8:
+                import_path = "./data/80a_no1_e20.csv"
+            elif args.alpha == 0.9875:
+                import_path = "./data/9875a_no1_e20.csv"
+            elif args.alpha == 0:
+                import_path = "./data/0a_no1_e20.csv"
             label_path = "./data/gansan_original.csv"
-        print(f"\n Launching attack on {args.input_dataset} dataset. \n")
+
+        if_gansan = f" with alpha = {args.alpha}" if args.input_dataset == 'gansan' else ""
+        print(f"\n Launching attack on {args.input_dataset} dataset{if_gansan}. \n")
         
         self.attr_to_gen = args.attr_to_gen
 
@@ -468,7 +481,10 @@ class Training:
         plt.xlabel("Epochs")
         plt.ylabel("L1 Loss")
         plt.title("Train Loss")
-        plt.savefig(path_to_exp+f"{args.exp_name}-{a}_{args.learning_rate}lr_{args.batch_size}.png")
+
+
+        if_gansan = f"_{args.alpha}a" if args.input_dataset == 'gansan' else ""
+        plt.savefig(path_to_exp+f"{args.exp_name}-{a}{if_gansan}_{args.learning_rate}lr_{args.batch_size}.png")
     
     def pandas_describe(self):
         '''
