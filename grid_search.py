@@ -16,8 +16,8 @@ def launch(bs: int, lr:float, ep:int, alpha:float):
 parser = argparse.ArgumentParser()
 args = parse_arguments(parser)
 
-lrs = [1e-6,1e-7]
-bses = [1024, 2048]
+lrs = [1e-6, 1e-7,1e-8]
+bses = [1024, 2048,4096]
 input_dataset = args.input_dataset
 
 Parallel(n_jobs=args.cpu_parallel)(delayed(launch)(bs, lr, args.epochs, args.alpha) for lr in lrs for bs in bses)
