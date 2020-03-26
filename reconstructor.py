@@ -329,12 +329,12 @@ class Training:
             else:
                 is_better.append(False)
          
-        is_better_df = pd.DataFrame([self.sanitized_loss, self.lowest_loss_per_dim, is_better,how_much])
+        
         if args.input_dataset == 'gansan':
             columns=self.experiment_x.data_pp.encoded_features_order
         else:
             columns=self.experiment_x.data_pp.cols_order
-
+        is_better_df = pd.DataFrame([self.sanitized_loss, self.lowest_loss_per_dim, is_better,how_much], columns=columns)
         # Save model meta data in txt file
         with open(path_to_exp+f"metadata.txt", 'w+') as f:
             f.write(f"Epochs: {self.num_epochs} \n \n")
