@@ -25,8 +25,8 @@ Parallel(n_jobs=args.cpu_parallel)(delayed(launch)(bs, lr, args.epochs, args.alp
 
 # Send Notification that Job is completed
 text = f"Grid Search on {input_dataset} with learning rates = {lrs} and batch sizez = {bses} Completed."
-user = os.getenv("USER")
-content = 'Subject: %s\n\n%s' % (f"Python Job Completed on {user}", text)
+user_host = os.getenv("USER") + "@" + os.uname()[1]
+content = 'Subject: %s\n\n%s' % (f"Python Job Completed on {user_host}", text)
 
 mail = smtplib.SMTP('smtp.gmail.com',587)
 mail.ehlo()
