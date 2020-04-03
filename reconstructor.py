@@ -68,14 +68,6 @@ class PreProcessing:
         self.data_pp = d.Encoder(import_path)
         self.labels_pp = d.Encoder(label_path)
         
-        # Remove ? --> Likely no need if using gansan' AdultNotNA.csv
-        # for index, col in enumerate(self.data_pp.df.columns):
-        #     self.data_pp.df = self.data_pp.df[~self.data_pp.df[str(col)].isin(['?'])]
-        #     self.labels_pp.df = self.labels_pp.df.drop(index=index)
-        # for index, col in enumerate(self.labels_pp.df.columns):
-        #     self.labels_pp.df = self.labels_pp.df[~self.labels_pp.df[str(col)].isin(['?'])]
-        #     self.data_pp.df = self.data_pp.df.drop(index=index)
-        
         # Encode if gansan input
         if args.input_dataset == 'gansan':
             # self.data_pp.load_parameters('./data/')
@@ -157,10 +149,8 @@ class Autoencoder(nn.Module):
         super(Autoencoder, self).__init__()
         self.encoder = nn.Sequential(
             nn.Linear(in_dim, in_dim),
-            # batchnorm?,
             nn.LeakyReLU(),
             nn.Linear(in_dim,out_dim),
-            # batchnorm,
             nn.LeakyReLU(), 
             nn.Linear(out_dim,out_dim),
             nn.LeakyReLU()
@@ -301,7 +291,7 @@ class Training:
         og_test_data = torch.tensor(self.experiment_x.dataloader.data_with_sensitive.values[self.experiment_x.dataloader.train_size:,:])
         og_test_labels = torch.tensor(self.experiment_x.dataloader.label_with_sensitive.values[self.experiment_x.dataloader.train_size:,:])
         self.og_test_dataset = torch.utils.data.TensorDataset(og_test_data, og_test_labels)
-        
+         
         og_dataloader = torch.utils.data.DataLoader(
             self.og_test_dataset,
             batch_size=self.experiment_x.dataloader.test_batch_size,
@@ -354,113 +344,6 @@ class Training:
 
         os.mkdir(path_base)
         is_better_df.to_csv(path_base+f"reconstruction_appraisal.csv", index=False, float_format='%.6f')
-
-    def post_training_metrics(self):
-        '''
-            This will calculate (1) diversity within generated dataset, 
-                and the (2) damage the generated dataset has
-                    Those will be compared to both the original and sanitized        
-
-            ISSUE -> Sanitized data does not have sensitive attribute, hence fewer dimensions    
-        '''
-        # Need to created a Encoder object with original data just in order to have matching columns when calculating damage and Diversity
-        print(f"Starting calculation Three-way of Diversity, Damage and graphs: {self.dim_red}")
-        start = time.time()
-
-
-        # TODO loop through those 3 paragraphs
-        # Sanitized data == model input data
-        test_san = self.experiment_x.dataloader.df_data.values[self.experiment_x.dataloader.train_size:,:] 
-        headers = self.experiment_x.dataloader.headers_wo_sensitive
-        san_data = pd.DataFrame(test_san, columns=headers)
-        # san_data.to_csv(model_saved+'junk_test_san.csv', index=False)
-        # san_data_rough = pd.read_csv(model_saved+'junk_test_san.csv')
-        # self.san_encoder = d.Encoder(san_data_rough)
-        # pd_san_data = self.san_encoder.df
-
-        # Original data == Model's target data
-        test_og = self.experiment_x.dataloader.df_label.values[self.experiment_x.dataloader.train_size:,:]
-        headers = self.experiment_x.dataloader.data_with_sensitive.columns
-        og_data = pd.DataFrame(test_og, columns=headers)
-        # og_data.to_csv(model_saved+'junk_test_og.csv',  index=False)
-        # og_data_rough = pd.read_csv(model_saved+'junk_test_og.csv')
-        # self.og_encoder = d.Encoder(og_data_rough)
-        # self.og_encoder.load_parameters(path_to_exp, prmFile=f"{args.input_dataset}_parameters_data.prm")
-        # pd_og_data = self.og_encoder.df
-        
-        #Generated Data
-        test_gen = self.best_generated_data
-        headers = self.experiment_x.dataloader.data_with_sensitive.columns
-        test_gen = pd.DataFrame(test_gen, columns=headers)
-        # test_gen.to_csv(model_saved+'junk_test_gen.csv', index=False)
-        # gen_data_rough = pd.read_csv(model_saved+'junk_test_gen.csv')
-        # self.gen_encoder = d.Encoder(gen_data_rough)
-        # self.gen_encoder.load_parameters(path_to_exp, prmFile=f"{args.input_dataset}_parameters_data.prm")
-        # pd_gen_data = self.gen_encoder.df
-
-        # test_data_dict = {}
-        # test_data_dict['orig_san'] = [pd_og_data, pd_san_data]
-        # test_data_dict['san_gen'] = [ pd_san_data,pd_gen_data]
-        # test_data_dict['gen_orig'] = [pd_gen_data,pd_og_data] 
-        
-        # Calculate diversity among three dataset
-        # Diversity is line by line, a
-        # path_to_eval = f"{path_to_exp}model_metrics/"
-        # os.mkdir(path_to_eval)
-
-        # diversities = []
-        # saver_dict = {}
-        # for key in test_data_dict:
-        #     # Save all damage and diversity results
-        #     saver_dict[key] = r.DiversityDamageResults(resultDir=path_to_eval, result_file=f"cat_damage_{key}.csv",  num_damage=f"numerical_damage_{key}.csv", overwrite=True)
-
-        #     div = at.Diversity()
-        #     diversity = div(test_data_dict[key][0], f"original_{key.split('_')[0]}")
-        #     diversity.update(div(test_data_dict[key][1], f"transformed_{key.split('_')[1]}"))
-        #     diversities.append(diversity)
-        # DECODE DATA
-        # Sanitized data == model input data
-        # self.san_encoder.inverse_transform()
-        # pd_san_data = self.san_encoder.df
-        # # Original data == Model's target data
-        # self.og_encoder.inverse_transform()
-        # pd_og_data = self.og_encoder.df
-        # # Generated data
-        # self.gen_encoder.inverse_transform()
-        # pd_gen_data = self.gen_encoder.df
-        # pd_gen_data.to_csv(f"{model_saved}lowest-loss-generated-data_ep{self.lowest_loss_ep}.csv",  index=False)
-
-        #TODO Figure out how to update a dict
-        # test_data_dict['orig_san'] = [pd_og_data,  pd_san_data]
-        # test_data_dict['san_gen'] = [ pd_san_data, pd_gen_data]
-        # test_data_dict['gen_orig'] = [pd_gen_data, pd_og_data]
-        
-        # dam_dict = {}
-        # i = 0
-
-        # Calculation of Damage; Damage is for each feature, compared across two datasets
-        # for key in test_data_dict:
-        #     dam = at.Damage()
-
-        #     d_cat, d_num = dam(original=test_data_dict[key][0], transformed=test_data_dict[key][1])
-        #     dam_dict[key] = [d_cat, d_num]
-
-        #     saver_dict[key].add_results(diversity=diversities[i], damage_categorical=d_cat, damage_numerical=d_num, epoch=self.num_epochs, alpha_=args.alpha)
-        #     i = i +1
-            
-        #     # Calculate dimention reduction is required
-        #     if (self.dim_red).lower() != 'none':
-        #         # each color is each label as specific
-        #         dr = at.DimensionalityReduction()
-        #         dr.clusters_original_vs_transformed_plots({key.split('_')[0]: test_data_dict[key][0], key.split('_')[1]: test_data_dict[key][1]},labels=test_data_dict[key][0]['sex'], dimRedFn=self.dim_red, savefig=path_to_eval+f"label_{key}_{self.dim_red}.png")
-
-        #         # Each color is a dataset
-        #         dr.original_vs_transformed_plots({key.split('_')[0]: test_data_dict[key][0], key.split('_')[1]: test_data_dict[key][1]}, dimRedFn=self.dim_red, savefig=path_to_eval+f"dataset_{key}_{self.dim_red}.png")
-
-        # os.remove(model_saved+'junk_test_og.csv')
-        # os.remove(model_saved+'junk_test_san.csv')
-        # os.remove(model_saved+'junk_test_gen.csv')
-        end = time.time()
         
 
     def gen_loss_graphs(self):
@@ -524,9 +407,6 @@ def main():
 
     # Train the AE
     training_instance.train_model()
-
-    # Run Damage, Diversity and dimension reduction graphs Calculation
-    # training_instance.post_training_metrics()
 
     # Generate test and train loss graphs (L1)
     training_instance.gen_loss_graphs()

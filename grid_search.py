@@ -1,6 +1,7 @@
 from typing import List
 import argparse, os
 from joblib import Parallel, delayed
+import smtplib
 
 def parse_arguments(parser):
     parser.add_argument('-in','--input_dataset', type=str, default='gansan', help='Dataset to use as input. Currently support `gansan` and `disp_impact`', required=False, choices=['gansan', 'disp_impact'])
@@ -11,14 +12,26 @@ def parse_arguments(parser):
     return args
 
 def launch(bs: int, lr:float, ep:int, alpha:float):
-    os.system(f"python3 reconstructor.py -ep={ep} -ag=sex -in={input_dataset} -lr={lr} -bs={bs} -a={alpha} -n=\'grid-search\'")
+    os.system(f"python3 reconstructor.py -ep={ep} -gen=sex -in={input_dataset} -lr={lr} -bs={bs} -a={alpha} -n=\'grid-search\'")
 
 parser = argparse.ArgumentParser()
 args = parse_arguments(parser)
 
-lrs = [1e-7,5e-8]
-bses = [2048, 4096]
+lrs = [1e-7]
+bses = [4096]
 input_dataset = args.input_dataset
 
 Parallel(n_jobs=args.cpu_parallel)(delayed(launch)(bs, lr, args.epochs, args.alpha) for lr in lrs for bs in bses)
 
+# Send Notification that Job is completed
+text = f"Grid Search on {input_dataset} with learning rates = {lrs} and batch sizez = {bses} Completed."
+user = os.getenv("USER")
+content = 'Subject: %s\n\n%s' % (f"Python Job Completed on {user}", text)
+
+mail = smtplib.SMTP('smtp.gmail.com',587)
+mail.ehlo()
+mail.starttls()
+passw = os.getenv("python_pass")
+mail.login('jc.taillandier1@gmail.com', passw)
+mail.sendmail('jc.taillandier1@gmail.com','jc.taillandier@hotmail.com',content) 
+mail.close()
