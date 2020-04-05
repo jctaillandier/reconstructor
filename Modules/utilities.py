@@ -76,17 +76,17 @@ def parse_arguments(parser):
     return args, path_to_exp, model_saved
 
 
-    def post_training_metrics(self):
-        '''
-            This will calculate (1) diversity within generated dataset, 
-                and the (2) damage the generated dataset has
-                    Those will be compared to both the original and sanitized        
+    # def post_training_metrics(self):
+    #     '''
+    #         This will calculate (1) diversity within generated dataset, 
+    #             and the (2) damage the generated dataset has
+    #                 Those will be compared to both the original and sanitized        
 
-            ISSUE -> Sanitized data does not have sensitive attribute, hence fewer dimensions    
-        '''
-        # Need to created a Encoder object with original data just in order to have matching columns when calculating damage and Diversity
-        # print(f"Starting calculation Three-way of Diversity, Damage and graphs: {self.dim_red}")
-        # start = time.time()
+    #         ISSUE -> Sanitized data does not have sensitive attribute, hence fewer dimensions    
+    #     '''
+    #     # Need to created a Encoder object with original data just in order to have matching columns when calculating damage and Diversity
+    #     # print(f"Starting calculation Three-way of Diversity, Damage and graphs: {self.dim_red}")
+    #     # start = time.time()
 
 
         # # TODO loop through those 3 paragraphs
