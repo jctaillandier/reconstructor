@@ -17,7 +17,7 @@ def launch(bs: int, lr:float, ep:int, alpha:float):
 parser = argparse.ArgumentParser()
 args = parse_arguments(parser)
 
-lrs = [1e-7]
+lrs = [1e-4,1e-5, 1e-6, 1e-7]
 bses = [4096]
 input_dataset = args.input_dataset
 
