@@ -16,7 +16,8 @@ import matplotlib.pyplot as plt
 from torch.utils import data as td
 from torch.autograd import Variable
 
-device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+local_device = os.getenv("local_torch_device")
+device = torch.device(local_device if torch.cuda.is_available() else "cpu")
 #device = torch.device("cpu")
 CPU_DEVICE = torch.device("cpu")
 GET_VALUE = lambda x: x.to(CPU_DEVICE).data.numpy().reshape(-1)[0]
