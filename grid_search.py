@@ -24,7 +24,7 @@ input_dataset = args.input_dataset
 Parallel(n_jobs=args.cpu_parallel)(delayed(launch)(bs, lr, args.epochs, args.alpha) for lr in lrs for bs in bses)
 
 # Send Notification that Job is completed
-text = f"Grid Search on {input_dataset} with learning rates = {lrs} and batch sizez = {bses} Completed."
+text = f"Grid Search on {input_dataset} with {args.epochs} epochs, learning rates = {lrs} and batch sizes = {bses} Completed."
 user_host = os.getenv("USER") + "@" + os.uname()[1]
 content = 'Subject: %s\n\n%s' % (f"Python Job Completed on {user_host}", text)
 
