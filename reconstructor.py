@@ -43,13 +43,11 @@ class PreProcessing:
                 alpha=0 means no protection, a=0.9875 is optimal, ie: top protection
             """
             if args.alpha == 0.25:
-                import_path = "./data/25a_no1_e20.csv"
+                import_path = "./data/adult_sanitized_0.9875.csv"
             elif args.alpha == 0.8:
-                import_path = "./data/80a_no1_e20.csv"
+                import_path = "./data/adult_sanitized_0.8.csv"
             elif args.alpha == 0.9875:
-                import_path = "./data/9875a_no1_e20.csv"
-            elif args.alpha == 0:
-                import_path = "./data/0a_no1_e20.csv"
+                import_path = "./data/adult_sanitized_0.9875.csv"
             label_path = "./data/gansan_original.csv"
 
         if_gansan = f" with alpha = {args.alpha}" if args.input_dataset == 'gansan' else ""
