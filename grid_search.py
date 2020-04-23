@@ -12,13 +12,13 @@ def parse_arguments(parser):
     return args
 
 def launch(bs: int, lr:float, ep:int, alpha:float):
-    os.system(f"python3 reconstructor.py -ep={ep} -gen=sex -in={input_dataset} -lr={lr} -bs={bs} -a={alpha} -n=\'grid-search\'")
+    os.system(f"python3 reconstructor.py -ep={ep} -in=gansan -lr={lr} -bs={bs} -a={alpha} -n=\'grid-search\'")
 
 parser = argparse.ArgumentParser()
 args = parse_arguments(parser)
 
-lrs = [1e-4,1e-5, 1e-6, 1e-7]
-bses = [4096]
+lrs = [1e-7]
+bses = [2048, 4096]
 input_dataset = args.input_dataset
 
 Parallel(n_jobs=args.cpu_parallel)(delayed(launch)(bs, lr, args.epochs, args.alpha) for lr in lrs for bs in bses)

@@ -42,7 +42,7 @@ class PreProcessing:
                 Load the sanitized data from gansna with different values of alpha
                 alpha=0 means no protection, a=0.9875 is optimal, ie: top protection
             """
-            if args.alpha == 0.25:
+            if args.alpha == 0.2:
                 import_path = "./data/adult_sanitized_0.9875.csv"
             elif args.alpha == 0.8:
                 import_path = "./data/adult_sanitized_0.8.csv"
