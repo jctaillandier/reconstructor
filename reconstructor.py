@@ -42,12 +42,15 @@ class PreProcessing:
                 Load the sanitized data from gansna with different values of alpha
                 alpha=0 means no protection, a=0.9875 is optimal, ie: top protection
             """
+            no_sex_file = ""
+            if args.no_sex == True:
+                no_sex_file = "_no_sex"
             if args.alpha == 0.2:
-                import_path = "./data/adult_sanitized_0.9875.csv"
+                import_path = f"./data/adult_sanitized_0.2{no_sex_file}.csv"
             elif args.alpha == 0.8:
-                import_path = "./data/adult_sanitized_0.8.csv"
+                import_path = f"./data/adult_sanitized_0.8{no_sex_file}.csv"
             elif args.alpha == 0.9875:
-                import_path = "./data/adult_sanitized_0.9875.csv"
+                import_path = f"./data/adult_sanitized_0.9875{no_sex_file}.csv"
             label_path = "./data/gansan_original.csv"
 
         if_gansan = f" with alpha = {args.alpha}" if args.input_dataset == 'gansan' else ""
