@@ -217,7 +217,6 @@ def test(model: torch.nn.Module, experiment: PreProcessing, test_loss_fn:torch.o
             gen_data = pd.DataFrame(np_output, columns=headers)
             # here I keep values for L1 distance on each dimensions
             loss = test_loss_fn(output.float(), target.float())
-    pdb.set_trace()
     data = pd.DataFrame(inputs.cpu().numpy(), columns=experiment.data_pp.encoded_features_order)
     data.to_csv(f"{model_saved}sanitized_testset_raw.csv", index=False)
     some_enc = d.Encoder(f"{model_saved}sanitized_testset_raw.csv")
