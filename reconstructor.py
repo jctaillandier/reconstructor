@@ -72,6 +72,11 @@ class PreProcessing:
         # Encode Input data if needed
         self.data_pp = d.Encoder(import_path)
         self.labels_pp = d.Encoder(label_path)
+
+        # remove income as it should not be available in sanitized nor reconstruction
+        # self.labels_pp.df.drop('income', axis=1, inplace=True)
+        # self.data_pp.df.drop('income',axis=1, inplace=True)
+        
         # Encode if gansan input
         if args.input_dataset == 'gansan':
             # self.data_pp.load_parameters('./data/')
@@ -80,10 +85,7 @@ class PreProcessing:
             self.data_pp.save_parameters(path_to_exp, prmFile=f"{args.input_dataset}_parameters_data.prm")
             self.labels_pp.load_parameters(path_to_exp, prmFile=f"{args.input_dataset}_parameters_data.prm")
             self.labels_pp.transform()
-        else:
-            self.data_pp.save_parameters(path_to_exp, prmFile=f"{args.input_dataset}_parameters_data.prm")
-            # self.labels_pp.df.drop(['income-per-year'], axis=1, inplace=True)
-            # self.data_pp.df.drop(['income-per-year'],axis=1, inplace=True)
+
         
         # MAke sure post processing label and data are of same shape
         if self.data_pp.df.shape != self.labels_pp.df.shape:
@@ -130,7 +132,7 @@ class My_dataLoader:
         self.telabels = torch.tensor(self.df_label.values[self.train_size:,:]) # also has too be 2d  
         self.train_dataset = torch.utils.data.TensorDataset(self.trdata, self.trlabels)
         self.test_dataset = torch.utils.data.TensorDataset(self.tedata, self.telabels)
-        
+
         self.sex_labelss = sex_labels['sex'].iloc[self.train_size:,]
         self.sex_labelss.reset_index(drop=True, inplace=True)
         # Split dataset into train and Test sets
@@ -155,6 +157,7 @@ class Autoencoder(nn.Module):
     def __init__(self, in_dim: int, out_dim: int):
         super(Autoencoder, self).__init__()
         self.encoder = nn.Sequential(
+            
             # nn.Linear(in_dim, in_dim),
             # nn.LeakyReLU(),
             nn.Linear(in_dim,out_dim),
@@ -218,9 +221,7 @@ def test(model: torch.nn.Module, experiment: PreProcessing, test_loss_fn:torch.o
             # here I keep values for L1 distance on each dimensions
             loss = test_loss_fn(output.float(), target.float())
     data = pd.DataFrame(inputs.cpu().numpy(), columns=experiment.data_pp.encoded_features_order)
-    data.to_csv(f"{model_saved}sanitized_testset_raw.csv", index=False)
-    some_enc = d.Encoder(f"{model_saved}sanitized_testset_raw.csv")
-    some_enc.load_parameters(path_to_exp, prmFile=f"{args.input_dataset}_parameters_data.prm")
+    some_enc = experiment.labels_pp
     some_enc.inverse_transform()
     final_df = pd.concat([some_enc.df, experiment.dataloader.sex_labelss], axis=1)
     final_df.to_csv(f"{model_saved}sanitized_testset_clean.csv", index=False)

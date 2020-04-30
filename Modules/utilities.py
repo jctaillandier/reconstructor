@@ -58,7 +58,7 @@ def parse_arguments(parser):
     parser.add_argument('-tbs','--test_batch_size', type=str, default='full', help='Size of test batch size. Do not touch. If fails for out of memory, need code adjustment', required=False)
     parser.add_argument('-pts','--percent_train_set', type=float, default=0.85, help='Percentage of total Dataset that will be kept for training. Rest will be used for testing', required=False)
     parser.add_argument('-wd','--weight_decay', type=float, default=0, help='Value for L2 penalty known as Weight Decay. Has not shown any value in this use case', required=False)
-    parser.add_argument('-lr','--learning_rate', type=float, default=1e-7, help='Learning rate on which we will optimize with Adam. Better performance are show with lr < 1e-4', required=False)
+    parser.add_argument('-lr','--learning_rate', type=float, default=1e-6, help='Learning rate on which we will optimize with Adam. Better performance are show with lr < 1e-4', required=False)
     parser.add_argument('-dr','--dim_red', type=str, default='none', help='Dimension reduction. Choose from pca, tsne, umap, svp or none. Where pca is quicker to compute', required=False, choices=['none', 'umap', 'tsne', 'svp','pca'])
     parser.add_argument('-a','--alpha', type=float, default=0.2, help='Value of alpha used when  sanitizing the dataset we use as input.', required=False, choices=[0.2,0.8,0.9875])
     parser.add_argument('-gen','--attr_to_gen', type=str, default='none', help='Attribute that we want to remove from input if present, and have model infer; out_dim=in_dim+2', required=False)

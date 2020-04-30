@@ -243,6 +243,7 @@ class Encoder:
         if self.prep_excluded is not None:
             excluded = self.df[self.prep_excluded]
             self.df.drop(self.prep_excluded, axis=1, inplace=True)
+        
         self.df = pd.DataFrame(self.scaler.inverse_transform(self.df.values), columns=self.df.columns)
         self.__from_dummies__()
         # Scaler contains all columns
