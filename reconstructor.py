@@ -72,7 +72,6 @@ class PreProcessing:
         # Encode Input data if needed
         self.data_pp = d.Encoder(import_path)
         self.labels_pp = d.Encoder(label_path)
-        
         # Encode if gansan input
         if args.input_dataset == 'gansan':
             # self.data_pp.load_parameters('./data/')
@@ -90,7 +89,7 @@ class PreProcessing:
         if self.data_pp.df.shape != self.labels_pp.df.shape:
             raise ValueError(f"The data csv ({self.data_pp.df.shape}) and labels ({self.labels_pp.df.shape}) post-encoding don't have the same shape.")
 
-        
+        # self.data_pp.df.to_csv("/home/jc/Desktop/0.9875gansanitized_encoded.csv")
         self.dataloader = My_dataLoader(self.batchSize, self.data_pp.df, self.labels_pp.df, self.n_test,  sex_labels)
         
 
@@ -290,6 +289,17 @@ class Training:
         fm = open(model_saved+f"final-model_{self.num_epochs}ep.pth", "wb")
         torch.save(self.model.state_dict(), fm)
 
+
+        last_ep_data = pd.DataFrame(model_gen_data, columns=self.experiment_x.data_pp.encoded_features_order)
+        last_ep_data.to_csv(f"{model_saved}last_ep_data_raw.csv", index=False)
+        some_enc = d.Encoder(f"{model_saved}last_ep_data_raw.csv")
+        some_enc.load_parameters(path_to_exp, prmFile=f"{args.input_dataset}_parameters_data.prm")
+        some_enc.inverse_transform()
+        final_df = pd.concat([some_enc.df, self.experiment_x.dataloader.sex_labelss], axis=1)
+        # final_df_clean = pd.concat([self.gen_encoder.df, self.experiment_x.dataloader.sex_labelss], axis=1)
+        final_df.to_csv(f"{model_saved}last_ep_data_clean.csv", index=False)
+
+
         end = time.time()
         print(f"Training on {self.num_epochs} epochs completed in {(end-start)/60} minutes.\n")
 
@@ -396,7 +406,8 @@ class Training:
                 self.gen_encoder.load_parameters(path_to_exp, prmFile=f"{args.input_dataset}_parameters_data.prm")
                 self.gen_encoder.inverse_transform()
                 final_df = pd.concat([self.gen_encoder.df, self.experiment_x.dataloader.sex_labelss], axis=1)
-                final_df.to_csv(f"{model_saved}clean_generated.csv", index=False)
+                # final_df_clean = pd.concat([self.gen_encoder.df, self.experiment_x.dataloader.sex_labelss], axis=1)
+                final_df.to_csv(f"{model_saved}raw_generated.csv", index=False)
                 
         a = self.og_data.describe()
         b = self.san_data.describe()
