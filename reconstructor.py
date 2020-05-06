@@ -15,6 +15,7 @@ from torch.utils.data import *
 import matplotlib.pyplot as plt
 from torch.utils import data as td
 from torch.autograd import Variable
+from sklearn.metrics.cluster import normalized_mutual_info_score as nmi
 
 local_device = os.getenv("local_torch_device")
 device = torch.device(local_device if torch.cuda.is_available() else "cpu")
@@ -157,9 +158,8 @@ class Autoencoder(nn.Module):
     def __init__(self, in_dim: int, out_dim: int):
         super(Autoencoder, self).__init__()
         self.encoder = nn.Sequential(
-            
-            # nn.Linear(in_dim, in_dim),
-            # nn.LeakyReLU(),
+            nn.Linear(in_dim, in_dim),
+            nn.LeakyReLU(),
             nn.Linear(in_dim,out_dim),
             nn.LeakyReLU(), 
             nn.Linear(out_dim,out_dim),
@@ -191,7 +191,7 @@ def train(model: torch.nn.Module, train_loader:torch.utils.data.DataLoader, opti
     mean_loss = mean_loss.detach()
     return sum(mean_loss)/len(mean_loss)
 
-def test(model: torch.nn.Module, experiment: PreProcessing, test_loss_fn:torch.optim) -> (int, pd.DataFrame):
+def test(model: torch.nn.Module, experiment: PreProcessing, test_loss_fn:torch.optim, last_epoch: bool) -> (int, pd.DataFrame):
     '''
         Does the test loop and if last epoch, decodes data, generates new data, returns and saves both 
         under ./experiments/<experiment_name>/
@@ -204,6 +204,7 @@ def test(model: torch.nn.Module, experiment: PreProcessing, test_loss_fn:torch.o
         :RETURN
         int: average loss on this epoch
         pd.DataFrame: generated data in a dataframe with encoded data
+        last_epoch: current epoch
     '''
     model.eval()
     
@@ -220,12 +221,16 @@ def test(model: torch.nn.Module, experiment: PreProcessing, test_loss_fn:torch.o
             gen_data = pd.DataFrame(np_output, columns=headers)
             # here I keep values for L1 distance on each dimensions
             loss = test_loss_fn(output.float(), target.float())
-    data = pd.DataFrame(inputs.cpu().numpy(), columns=experiment.data_pp.encoded_features_order)
-    some_enc = experiment.labels_pp
-    some_enc.inverse_transform()
-    final_df = pd.concat([some_enc.df, experiment.dataloader.sex_labelss], axis=1)
-    final_df.to_csv(f"{model_saved}sanitized_testset_clean.csv", index=False)
-
+    
+    if last_epoch == True:
+        # To save sanitized test set to compare with generated data line by line
+        data = pd.DataFrame(inputs.cpu().numpy(), columns=experiment.data_pp.encoded_features_order)
+        data.to_csv(f"{model_saved}sanitized_testset_raw.csv", index=False)
+        some_enc = d.Encoder(f"{model_saved}sanitized_testset_raw.csv")
+        some_enc.load_parameters(path_to_exp,f"{args.input_dataset}_parameters_data.prm")
+        some_enc.inverse_transform()
+        final_df = pd.concat([some_enc.df, experiment.dataloader.sex_labelss], axis=1)
+        final_df.to_csv(f"{model_saved}sanitized_testset_clean.csv", index=False)
     
     return loss.mean(dim=0), gen_data 
 
@@ -267,14 +272,16 @@ class Training:
         self.best_generated_data = []
         self.lowest_loss_ep = -1
         self.lowest_loss_per_dim = []
-
+        last_ep = False
         for epoch in tqdm.tqdm(range(self.num_epochs), desc=f"lr={args.learning_rate}, bs={args.batch_size}->"):
             # print(f"Running Epoch {epoch+1} / {self.num_epochs} for lr={args.learning_rate}, bs={args.batch_size}")
             # Iterate on train set with SGD (adam)
             batch_ave_tr_loss = train(self.model,self.experiment_x.dataloader.train_loader, self.optimizer, self.train_loss)
             self.ave_train_loss.append(batch_ave_tr_loss.cpu().numpy().item())
             # Check test set metrics (+ generate data if last epoch )
-            loss_per_dim_per_epoch, model_gen_data = test(self.model, self.experiment_x, self.test_loss_fn)
+            if epoch+1 == self.num_epochs:
+                last_ep=True
+            loss_per_dim_per_epoch, model_gen_data = test(self.model, self.experiment_x, self.test_loss_fn, last_ep)
             loss = sum(loss_per_dim_per_epoch)/len(loss_per_dim_per_epoch)
 
             # To save as lowest loss averaged over all dim, for loss graph,
@@ -292,14 +299,23 @@ class Training:
                 self.best_generated_data = model_gen_data
 
             loss_df = pd.DataFrame([self.lowest_loss_per_dim], columns=self.experiment_x.data_pp.encoded_features_order)
-            # print(f"Epoch {epoch} complete.\n Test Loss on epoch: {loss_per_dim_per_epoch.numpy().tolist()} \n")   
-            # print(f"Average Loss on epoch {epoch}: {sum(loss_per_dim_per_epoch)/len(loss_per_dim_per_epoch)} \n ")   
             self.test_accuracy.append(loss)#/len(self.experiment_x.dataloader.test_loader.dataset))
+
+        self.test_gen = pd.DataFrame(self.best_generated_data.values, columns=self.experiment_x.data_pp.encoded_features_order)
+        self.test_gen.to_csv(f"{model_saved}_best_loss_raw_generated.csv", index=False)
+        if args.input_dataset =='gansan':
+                self.gen_encoder = d.Encoder(f"{model_saved}_best_loss_raw_generated.csv")
+                self.gen_encoder.load_parameters(path_to_exp, prmFile=f"{args.input_dataset}_parameters_data.prm")
+                self.gen_encoder.inverse_transform()
+                final_df = pd.concat([self.gen_encoder.df, self.experiment_x.dataloader.sex_labelss], axis=1)
+                # final_df_clean = pd.concat([self.gen_encoder.df, self.experiment_x.dataloader.sex_labelss], axis=1)
+                final_df.to_csv(f"{model_saved}_best_loss_clean_generated.csv", index=False)
+
 
         fm = open(model_saved+f"final-model_{self.num_epochs}ep.pth", "wb")
         torch.save(self.model.state_dict(), fm)
 
-
+        # To save last epoch generated data
         last_ep_data = pd.DataFrame(model_gen_data, columns=self.experiment_x.data_pp.encoded_features_order)
         last_ep_data.to_csv(f"{model_saved}last_ep_data_raw.csv", index=False)
         some_enc = d.Encoder(f"{model_saved}last_ep_data_raw.csv")
@@ -406,22 +422,12 @@ class Training:
         test_og = self.experiment_x.dataloader.df_label.values[self.experiment_x.dataloader.train_size:,:]
         self.og_data = pd.DataFrame(test_og, columns=headers)
         
-        self.test_gen = pd.DataFrame(self.best_generated_data.values, columns=headers)
-        
 
-        self.test_gen.to_csv(f"{model_saved}raw_generated.csv", index=False)
-
-        if args.input_dataset =='gansan':
-                self.gen_encoder = d.Encoder(f"{model_saved}raw_generated.csv")
-                self.gen_encoder.load_parameters(path_to_exp, prmFile=f"{args.input_dataset}_parameters_data.prm")
-                self.gen_encoder.inverse_transform()
-                final_df = pd.concat([self.gen_encoder.df, self.experiment_x.dataloader.sex_labelss], axis=1)
-                # final_df_clean = pd.concat([self.gen_encoder.df, self.experiment_x.dataloader.sex_labelss], axis=1)
-                final_df.to_csv(f"{model_saved}raw_generated.csv", index=False)
-                
         a = self.og_data.describe()
         b = self.san_data.describe()
         c = self.test_gen.describe()
+        
+        aa = nmi()
         
         a.to_csv(path_base+"original.csv")
         b.to_csv(path_base+"sanitized.csv")
