@@ -117,7 +117,6 @@ class My_dataLoader:
         # Assumption is that sanitizer will not provide it 
         # REMOVED self.col_rm columns 
         self.df_data = df_data
-        pdb.set_trace()
         self.df_label = df_label
         self.col_rm = 0
         if args.attr_to_gen.lower() is not 'none':
@@ -159,8 +158,8 @@ class Autoencoder(nn.Module):
     def __init__(self, in_dim: int, out_dim: int):
         super(Autoencoder, self).__init__()
         self.encoder = nn.Sequential(
-            nn.Linear(in_dim, in_dim),
-            nn.LeakyReLU(),
+            # nn.Linear(in_dim, in_dim),
+            # nn.LeakyReLU(),
             nn.Linear(in_dim,out_dim),
             nn.LeakyReLU(), 
             nn.Linear(out_dim,out_dim),
@@ -178,7 +177,7 @@ def train(model: torch.nn.Module, train_loader:torch.utils.data.DataLoader, opti
         inputs, target = inputs.to(device), target.to(device)        
         
         output = model(inputs.float())
-        
+        # pdb.set_trace()
         loss_vector = loss_fn(output.float(), target.float())
         
         train_loss.append(sum(loss_vector))
@@ -256,7 +255,7 @@ class Training:
 
         if model_type == 'autoencoder':
             self.model = Autoencoder(self.in_dim, self.out_dim).to(device)
-        self.train_loss = torch.nn.L1Loss(reduction='none').to(device) 
+        self.train_loss = torch.nn.MSELoss(reduction='none').to(device) 
         self.test_loss_fn =torch.nn.L1Loss(reduction='none').to(device)
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=self.learning_rate, weight_decay=self.wd)
 
