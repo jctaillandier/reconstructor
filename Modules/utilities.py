@@ -64,6 +64,7 @@ def parse_arguments(parser):
     parser.add_argument('-gen','--attr_to_gen', type=str, default='none', help='Attribute that we want to remove from input if present, and have model infer; out_dim=in_dim+2', required=False)
     parser.add_argument('-in','--input_dataset', type=str, default='gansan', help='Dataset to use as input. Currently support `gansan` and `disp_impact`', required=False, choices=['gansan', 'disp_impact'])
     parser.add_argument('-ns','--no_sex', type=str, default=True, help='Whether `sex` column is taken into account in training the reconstructor. Should be no', required=False)
+    parser.add_argument('-kf','--kfold', type=str, default='true', help='Whether classifiers used after training to predict sensitive should use kfold, required=False)
 
     # parser.add_argument('--discriminator_size', type=tuple, default=(256, 128, 1), help='The dimension size of the discriminator. (default value: (256, 128, 1))')
     args = parser.parse_args()

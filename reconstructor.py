@@ -3,6 +3,7 @@ from Modules import analysisTools as at
 from Modules import utilities as utils
 from Modules import datasets as d
 from Modules import results as r
+from Modules import classifiers 
 
 # from Stats import Plots as Pl
 import csv, sys, math, json, tqdm, time, torch, random, os.path, warnings, argparse, importlib, torchvision, pdb
@@ -301,14 +302,14 @@ class Training:
             self.test_accuracy.append(loss)#/len(self.experiment_x.dataloader.test_loader.dataset))
 
         self.test_gen = pd.DataFrame(self.best_generated_data.values, columns=self.experiment_x.data_pp.encoded_features_order)
-        self.test_gen.to_csv(f"{model_saved}_best_loss_raw_generated.csv", index=False)
+        self.test_gen.to_csv(f"{model_saved}best_loss_raw_generated.csv", index=False)
         if args.input_dataset =='gansan':
-                self.gen_encoder = d.Encoder(f"{model_saved}_best_loss_raw_generated.csv")
+                self.gen_encoder = d.Encoder(f"{model_saved}best_loss_raw_generated.csv")
                 self.gen_encoder.load_parameters(path_to_exp, prmFile=f"{args.input_dataset}_parameters_data.prm")
                 self.gen_encoder.inverse_transform()
                 final_df = pd.concat([self.gen_encoder.df, self.experiment_x.dataloader.sex_labelss], axis=1)
                 # final_df_clean = pd.concat([self.gen_encoder.df, self.experiment_x.dataloader.sex_labelss], axis=1)
-                final_df.to_csv(f"{model_saved}_best_loss_clean_generated.csv", index=False)
+                final_df.to_csv(f"{model_saved}best_loss_clean_generated.csv", index=False)
 
 
         fm = open(model_saved+f"final-model_{self.num_epochs}ep.pth", "wb")
@@ -445,6 +446,11 @@ def main():
     # Generate test and train loss graphs (L1)
     training_instance.gen_loss_graphs()
     training_instance.pandas_describe()
+
+    # classifiers predicting sex variable
+    ext_classif = classifiers.BaseClassifiers("best_loss_clean_generated",path_to_exp, args.kfold)
+    ext_classif.runit()
+
 
     print(f"\n \n Experiment can be found under {path_to_exp} \n \n ")
 
