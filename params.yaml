@@ -1,0 +1,27 @@
+data_loading:
+        data_path: 
+            value: "./data/full_a=0_E=19.csv"
+            desc: "Where to get the input dataset"
+        label_path:
+            value: "./data/full_original.csv"
+            desc: "Where labels are. Line by line equivalent to data"
+model_params:
+        batchSize: 
+            value: 256
+            desc: "Size of training batch size"
+        test_batch_size: 
+            value: 'full'
+            desc: "Size of testing batch size. Ususally as big as memory allows"
+        percent_train_set: 
+            value: 0.85
+            desc: "Percentage of total dataset used as training set. Rest goes into test set"
+        learning_rate:
+            value: 0.001
+            desc: "Learning rate `lr` for model training"
+        num_epochs:
+            value: 100
+            desc: "Number of epochs to train the model."
+        weight_decay:
+            value: 0
+            desc: "Number of epochs to train the model."
+        
