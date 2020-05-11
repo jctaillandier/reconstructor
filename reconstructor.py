@@ -117,6 +117,7 @@ class My_dataLoader:
         # Assumption is that sanitizer will not provide it 
         # REMOVED self.col_rm columns 
         self.df_data = df_data
+        pdb.set_trace()
         self.df_label = df_label
         self.col_rm = 0
         if args.attr_to_gen.lower() is not 'none':
@@ -231,7 +232,6 @@ def test(model: torch.nn.Module, experiment: PreProcessing, test_loss_fn:torch.o
         some_enc.inverse_transform()
         final_df = pd.concat([some_enc.df, experiment.dataloader.sex_labelss], axis=1)
         final_df.to_csv(f"{model_saved}sanitized_testset_clean.csv", index=False)
-    
     return loss.mean(dim=0), gen_data 
 
 class Training:
@@ -352,6 +352,7 @@ class Training:
         #   contained in self.lowest_loss_per_dim
         is_better = []
         how_much = []
+        dtype = []
         better_count = 0
         for i, loss in enumerate(self.sanitized_loss):
             how_much.append((loss - self.lowest_loss_per_dim[i]))
@@ -361,7 +362,6 @@ class Training:
             else:
                 is_better.append(False)
          
-        
         if args.input_dataset == 'gansan':
             columns=self.experiment_x.data_pp.encoded_features_order
         else:
@@ -427,7 +427,6 @@ class Training:
         b = self.san_data.describe()
         c = self.test_gen.describe()
         
-        aa = nmi()
         
         a.to_csv(path_base+"original.csv")
         b.to_csv(path_base+"sanitized.csv")
