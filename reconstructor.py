@@ -447,8 +447,12 @@ def main():
     training_instance.gen_loss_graphs()
     training_instance.pandas_describe()
     print(f"Training completed. Running external Classifiers...")
+
     # classifiers predicting sex variable
     ext_classif = classifiers.BaseClassifiers("best_loss_clean_generated",path_to_exp, args.kfold)
+    ext_classif.runit()
+    # classifiers predicting sex variable
+    ext_classif = classifiers.BaseClassifiers("last_ep_data_clean",path_to_exp, args.kfold)
     ext_classif.runit()
 
 
