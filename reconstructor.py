@@ -446,7 +446,7 @@ def main():
     # Generate test and train loss graphs (L1)
     training_instance.gen_loss_graphs()
     training_instance.pandas_describe()
-
+    print(f"Training completed. Running external Classifiers...")
     # classifiers predicting sex variable
     ext_classif = classifiers.BaseClassifiers("best_loss_clean_generated",path_to_exp, args.kfold)
     ext_classif.runit()
