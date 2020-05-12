@@ -21,7 +21,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score
 
 class BaseClassifiers:
-    def __init__(self, file_to_test, path_to_exp, kfold='true'):
+    def __init__(self, file_to_test, path_to_exp, kfold='false'):
         self.file_name1 = file_to_test
         self.path = path_to_exp
         self.kfold = kfold

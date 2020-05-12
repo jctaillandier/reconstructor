@@ -3,6 +3,7 @@ from Modules import analysisTools as at
 from Modules import utilities as utils
 from Modules import datasets as d
 from Modules import results as r
+from Modules import customLosses as cl
 from Modules import classifiers 
 
 # from Stats import Plots as Pl
@@ -178,19 +179,19 @@ def train(model: torch.nn.Module, train_loader:torch.utils.data.DataLoader, opti
         inputs, target = inputs.to(device), target.to(device)        
         
         output = model(inputs.float())
-        # pdb.set_trace()
+
         loss_vector = loss_fn(output.float(), target.float())
-        
-        train_loss.append(sum(loss_vector))
+        train_loss.append(sum(loss_vector)/len(loss_vector))
     
-        loss_per_dim = torch.sum(loss_vector, dim=0) 
+        # loss_per_dim = torch.sum(loss_vector, dim=0) 
         
-        for loss in loss_per_dim:
+        for loss in loss_vector:
             loss.backward(retain_graph=True)
             optimizer.step()
     mean_loss = sum(train_loss) / batch_idx+1
     mean_loss = mean_loss.detach()
-    return sum(mean_loss)/len(mean_loss)
+    
+    return mean_loss
 
 def test(model: torch.nn.Module, experiment: PreProcessing, test_loss_fn:torch.optim, last_epoch: bool) -> (int, pd.DataFrame):
     '''
@@ -273,10 +274,12 @@ class Training:
         self.lowest_loss_ep = -1
         self.lowest_loss_per_dim = []
         last_ep = False
+        test_mae_loss = cl.MaeBerLoss(alpha_=0, device=device, ae_reduction='none', target_group=1 / 2)
+
         for epoch in tqdm.tqdm(range(self.num_epochs), desc=f"lr={args.learning_rate}, bs={args.batch_size}->"):
             # print(f"Running Epoch {epoch+1} / {self.num_epochs} for lr={args.learning_rate}, bs={args.batch_size}")
             # Iterate on train set with SGD (adam)
-            batch_ave_tr_loss = train(self.model,self.experiment_x.dataloader.train_loader, self.optimizer, self.train_loss)
+            batch_ave_tr_loss = train(self.model,self.experiment_x.dataloader.train_loader, self.optimizer, test_mae_loss)
             self.ave_train_loss.append(batch_ave_tr_loss.cpu().numpy().item())
             # Check test set metrics (+ generate data if last epoch )
             if epoch+1 == self.num_epochs:
