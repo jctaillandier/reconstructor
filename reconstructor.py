@@ -160,8 +160,8 @@ class Autoencoder(nn.Module):
     def __init__(self, in_dim: int, out_dim: int):
         super(Autoencoder, self).__init__()
         self.encoder = nn.Sequential(
-            # nn.Linear(in_dim, in_dim),
-            # nn.LeakyReLU(),
+            nn.Linear(in_dim, in_dim),
+            nn.LeakyReLU(),
             nn.Linear(in_dim,out_dim),
             nn.LeakyReLU(), 
             nn.Linear(out_dim,out_dim),
@@ -274,7 +274,7 @@ class Training:
         self.lowest_loss_ep = -1
         self.lowest_loss_per_dim = []
         last_ep = False
-        test_mae_loss = cl.MaeBerLoss(alpha_=0, device=device, ae_reduction='none', target_group=1 / 2)
+        test_mae_loss = cl.MaeBerLoss(alpha_=0.25, device=device, ae_reduction='none', target_group=1 / 2)
 
         for epoch in tqdm.tqdm(range(self.num_epochs), desc=f"lr={args.learning_rate}, bs={args.batch_size}->"):
             # print(f"Running Epoch {epoch+1} / {self.num_epochs} for lr={args.learning_rate}, bs={args.batch_size}")
@@ -284,7 +284,7 @@ class Training:
             # Check test set metrics (+ generate data if last epoch )
             if epoch+1 == self.num_epochs:
                 last_ep=True
-            loss_per_dim_per_epoch, model_gen_data = test(self.model, self.experiment_x, self.test_loss_fn, last_ep)
+            loss_per_dim_per_epoch, model_gen_data = test(self.model, self.experiment_x, test_mae_loss, last_ep)
             loss = sum(loss_per_dim_per_epoch)/len(loss_per_dim_per_epoch)
 
             # To save as lowest loss averaged over all dim, for loss graph,
