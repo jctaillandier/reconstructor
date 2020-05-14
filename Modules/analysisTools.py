@@ -68,8 +68,8 @@ class Damage:
         :return: the damage computed
         """
         damage = {}
-        for c in cat_orig.columns:
-            damage.update({c: [(cat_orig[c].astype("object") == cat_transformed[c]).mean()]})
+        for c in cat_orig:
+            damage.update({c: [(cat_orig[c] == cat_transformed[c]).mean()]})
         return damage
 
     def damage_numerical(self, num_orig: pd.core.frame.DataFrame, num_transformed: pd.core.frame.DataFrame):

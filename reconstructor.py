@@ -95,11 +95,11 @@ class PreProcessing:
             raise ValueError(f"The data csv ({self.data_pp.df.shape}) and labels ({self.labels_pp.df.shape}) post-encoding don't have the same shape.")
 
         # self.data_pp.df.to_csv("/home/jc/Desktop/0.9875gansanitized_encoded.csv")
-        self.dataloader = My_dataLoader(self.batchSize, self.data_pp.df, self.labels_pp.df, self.n_test,  sex_labels)
+        self.dataloader = My_dataLoader(self.batchSize, self.data_pp, self.labels_pp, self.n_test,  sex_labels)
         
 
 class My_dataLoader:
-    def __init__(self, batch_size : int, df_data: pd.DataFrame, df_label:pd.DataFrame, n_train :int, sex_labels):
+    def __init__(self, batch_size : int, df_data: d.Encoder, df_label: d.Encoder, n_train :int, sex_labels):
         '''
             Creates train and test loaders from local files, to be easily used by torch.nn
             
@@ -111,24 +111,24 @@ class My_dataLoader:
         '''
         self.batch_size = batch_size
         self.train_size = n_train
-        self.cols_with_sensitive = df_data.columns
-        self.data_with_sensitive = df_data
+        self.cols_with_sensitive = df_data.df.columns
+        self.data_with_sensitive = df_data.df
         self.label_with_sensitive = df_label
 
         # Remove Sensitive attribute from input since we want to infer it 
         # Assumption is that sanitizer will not provide it 
         # REMOVED self.col_rm columns 
-        self.df_data = df_data
-        self.df_label = df_label
+        self.df_data = df_data.df
+        self.df_label = df_label.df
         self.col_rm = 0
         if args.attr_to_gen.lower() is not 'none':
-            for col in df_data.columns:
+            for col in self.df_data.columns:
                 if args.attr_to_gen.lower() in col.lower():
                     self.df_data = self.df_data.drop([col], axis=1)
                     self.col_rm = self.col_rm + 1
         
                     # self.out_dim_to_add = self.out_dim_to_add + 1
-        self.headers_wo_sensitive =  df_data.columns   
+        self.headers_wo_sensitive =  self.df_data.columns   
         self.trdata = torch.tensor(self.df_data.values[:self.train_size,:]) # where data is 2d [D_train_size x features]
         self.trlabels = torch.tensor(self.df_label.values[:self.train_size,:]) # also has too be 2d
         self.tedata = torch.tensor(self.df_data.values[self.train_size:,:]) # where data is 2d [D_train_size x features]
@@ -156,6 +156,17 @@ class My_dataLoader:
             pin_memory=False
         )
 
+        cat_ix = self.df_data.select_dtypes(include=['object', 'bool']).columns
+        num_ix = self.df_data.select_dtypes(include=['int64', 'float64']).columns
+        self.c_ix = []
+        self.n_ix = []
+        # for i, v in enumerate(self.df_data.columns.tolist()):
+        #     if v in cat_ix:
+        #         self.c_ix.append(i)
+        #     elif v in num_ix:
+        #         self.n_ix.append(i)
+        self.num_idx, self.cat_idx = utils.filter_cols(self.df_data, '=')
+
 class Autoencoder(nn.Module):
     def __init__(self, in_dim: int, out_dim: int):
         super(Autoencoder, self).__init__()
@@ -172,26 +183,47 @@ class Autoencoder(nn.Module):
         x = self.encoder(xin)
         return x
     
-def train(model: torch.nn.Module, train_loader:torch.utils.data.DataLoader, optimizer:torch.optim, loss_fn) -> int:
+def train(model: torch.nn.Module, preprocessing:PreProcessing, optimizer:torch.optim, cat_loss, num_loss) -> int:
     model.train()
     train_loss = []
-    for batch_idx, (inputs, target) in enumerate(train_loader):
+    cat_train_loss = []
+    for batch_idx, (inputs, target) in enumerate(preprocessing.dataloader.train_loader):
         inputs, target = inputs.to(device), target.to(device)        
         
         output = model(inputs.float())
 
-        loss_vector = loss_fn(output.float(), target.float())
-        train_loss.append(sum(loss_vector)/len(loss_vector))
-    
-        # loss_per_dim = torch.sum(loss_vector, dim=0) 
-        
-        for loss in loss_vector:
+        # 1) Get idx of numerical, idx of categoricals
+        #       Where? When loading data
+        # preprocessing.dataloader.num_idx
+        # preprocessing.dataloader.cat_idx
+        if args.input_dataset != 'gansan':
+            raise InterruptedError('Wrong Dataset. This loss uses column indexes for gansan input')
+        # 2) calculate L1 on numerical
+        #       Adjust to pass both losses in train and test functions
+        pdb.set_trace()
+        cat_loss_vector = cat_loss.damage_categorical(output[:,6:].long(), target[:,6:].long())
+        cat_train_loss.append(sum(cat_loss_vector)/len(cat_loss_vector))
+
+        # 3) calculate Damage on Categorical
+        num_loss_vector = num_loss(output[:,:6].float(), target[:,:6].float())
+        num_train_loss.append(sum(num_loss_vector)/len(num_loss_vector))
+
+        # 4) Step over both vectors
+        for loss in cat_loss_vector:
             loss.backward(retain_graph=True)
             optimizer.step()
-    mean_loss = sum(train_loss) / batch_idx+1
-    mean_loss = mean_loss.detach()
+
+        for loss in num_loss_vector:
+            loss.backward(retain_graph=True)
+            optimizer.step()
+        
+    mean_cat_loss = sum(cat_train_loss) / batch_idx+1
+    mean_cat_loss = mean_cat_loss.detach()
+
+    mean_num_loss = sum(num_train_loss) / batch_idx+1
+    mean_num_loss = mean_num_loss.detach()
     
-    return mean_loss
+    return mean_cat_loss, mean_num_loss
 
 def test(model: torch.nn.Module, experiment: PreProcessing, test_loss_fn:torch.optim, last_epoch: bool) -> (int, pd.DataFrame):
     '''
@@ -233,7 +265,7 @@ def test(model: torch.nn.Module, experiment: PreProcessing, test_loss_fn:torch.o
         some_enc.inverse_transform()
         final_df = pd.concat([some_enc.df, experiment.dataloader.sex_labelss], axis=1)
         final_df.to_csv(f"{model_saved}sanitized_testset_clean.csv", index=False)
-    return loss.mean(dim=0), gen_data 
+    return loss, gen_data 
 
 class Training:
     def __init__(self, experiment_x: PreProcessing, model_type:str='autoencoder'):
@@ -257,7 +289,10 @@ class Training:
 
         if model_type == 'autoencoder':
             self.model = Autoencoder(self.in_dim, self.out_dim).to(device)
-        self.train_loss = torch.nn.MSELoss(reduction='none').to(device) 
+
+        cat_loss = at.Damage()
+        self.num_train_loss = cat_loss
+        self.cat_train_loss = torch.nn.L1Loss(reduction='none').to(device) 
         self.test_loss_fn =torch.nn.L1Loss(reduction='none').to(device)
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=self.learning_rate, weight_decay=self.wd)
 
@@ -269,22 +304,23 @@ class Training:
         start = time.time()
         lowest_test_loss = 9999999999999999
         self.test_accuracy = []
-        self.ave_train_loss = []
+        self.ave_cat_train_loss = []
+        self.ave_num_train_loss = []
         self.best_generated_data = []
         self.lowest_loss_ep = -1
         self.lowest_loss_per_dim = []
         last_ep = False
-        test_mae_loss = cl.MaeBerLoss(alpha_=0.25, device=device, ae_reduction='none', target_group=1 / 2)
 
         for epoch in tqdm.tqdm(range(self.num_epochs), desc=f"lr={args.learning_rate}, bs={args.batch_size}->"):
             # print(f"Running Epoch {epoch+1} / {self.num_epochs} for lr={args.learning_rate}, bs={args.batch_size}")
             # Iterate on train set with SGD (adam)
-            batch_ave_tr_loss = train(self.model,self.experiment_x.dataloader.train_loader, self.optimizer, test_mae_loss)
-            self.ave_train_loss.append(batch_ave_tr_loss.cpu().numpy().item())
+            batch_ave_cat_tr_loss, batch_ave_num_tr_loss = train(self.model,self.experiment_x, self.optimizer, self.num_train_loss, self.cat_train_loss)
+            self.ave_cat_train_loss.append(batch_ave_cat_tr_loss.cpu().numpy().item())
+            self.ave_num_train_loss.append(batch_ave_num_tr_loss.cpu().numpy().item())
             # Check test set metrics (+ generate data if last epoch )
             if epoch+1 == self.num_epochs:
                 last_ep=True
-            loss_per_dim_per_epoch, model_gen_data = test(self.model, self.experiment_x, test_mae_loss, last_ep)
+            loss_per_dim_per_epoch, model_gen_data = test(self.model, self.experiment_x, args.los, last_ep)
             loss = sum(loss_per_dim_per_epoch)/len(loss_per_dim_per_epoch)
 
             # To save as lowest loss averaged over all dim, for loss graph,
@@ -402,10 +438,16 @@ class Training:
         plt.title("Test Loss")
 
         plt.subplot(1,2,2)
-        plt.plot(x_axis, self.ave_train_loss)
+        plt.plot(x_axis, self.ave_cat_train_loss)
+        plt.xlabel("Epochs")
+        plt.ylabel("Damage")
+        plt.title("Train Loss on categorical features")
+
+        plt.subplot(1,2,3)
+        plt.plot(x_axis, self.ave_num_train_loss)
         plt.xlabel("Epochs")
         plt.ylabel("L1 Loss")
-        plt.title("Train Loss")
+        plt.title("Train Loss on numerical features")
 
 
         if_gansan = f"_{args.alpha}a" if args.input_dataset == 'gansan' else ""

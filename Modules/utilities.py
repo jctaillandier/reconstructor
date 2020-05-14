@@ -78,6 +78,27 @@ def parse_arguments(parser):
     return args, path_to_exp, model_saved
 
 
+def filter_cols(df, substr):
+    '''
+        iterates over headers and returns idexes of columns which contains the thing 
+        and the ones that dont
+
+        :PARAMS
+        df: dataframe
+        substr: substring we need in headers
+    '''
+    has = []
+    hasnot = []
+    for idx, header in enumerate(df.columns):
+        if substr in header:
+            has.append(idx)
+        else:
+            hasnot.append(idx)
+
+    return has, hasnot
+
+
+    
     # def post_training_metrics(self):
     #     '''
     #         This will calculate (1) diversity within generated dataset, 
