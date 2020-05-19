@@ -177,13 +177,13 @@ def train(model: torch.nn.Module, preprocessing:PreProcessing, optimizer:torch.o
         else:
             output = model(inputs.float())
             loss_vector = loss_fn(output.float(), target.float())
-            pdb.set_trace()
+        loss_per_dim = torch.sum(loss_vector, dim=0) 
         train_loss.append(sum(loss_vector)/len(loss_vector))
-
-        for loss in loss_vector:
+        count = 0
+        for loss in loss_per_dim:
             loss.backward(retain_graph=True)
             optimizer.step()
-        
+            count +=1
     mean_loss = sum(train_loss) / batch_idx+1
     mean_loss = mean_loss.detach()
 
