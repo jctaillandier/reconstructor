@@ -183,9 +183,9 @@ class Autoencoder(nn.Module):
         x = self.encoder(xin)
         return x
     
-def train(model: torch.nn.Module, preprocessing:PreProcessing, optimizer:torch.optim, cat_loss, num_loss) -> int:
+def train(model: torch.nn.Module, preprocessing:PreProcessing, optimizer:torch.optim, num_loss) -> int:
     model.train()
-    train_loss = []
+    num_train_loss = []
     cat_train_loss = []
     for batch_idx, (inputs, target) in enumerate(preprocessing.dataloader.train_loader):
         inputs, target = inputs.to(device), target.to(device)        
@@ -200,8 +200,10 @@ def train(model: torch.nn.Module, preprocessing:PreProcessing, optimizer:torch.o
             raise InterruptedError('Wrong Dataset. This loss uses column indexes for gansan input')
         # 2) calculate L1 on numerical
         #       Adjust to pass both losses in train and test functions
+        
+        cat_loss = cl.DamageAttributeLoss(preprocessing.dataloader.cat_idx,[], hard=True)
         pdb.set_trace()
-        cat_loss_vector = cat_loss.damage_categorical(output[:,6:].long(), target[:,6:].long())
+        cat_loss_vector = cat_loss(output[:,6:].float(), target[:,6:].float())
         cat_train_loss.append(sum(cat_loss_vector)/len(cat_loss_vector))
 
         # 3) calculate Damage on Categorical
@@ -290,9 +292,9 @@ class Training:
         if model_type == 'autoencoder':
             self.model = Autoencoder(self.in_dim, self.out_dim).to(device)
 
-        cat_loss = at.Damage()
-        self.num_train_loss = cat_loss
-        self.cat_train_loss = torch.nn.L1Loss(reduction='none').to(device) 
+        self.num_train_loss = torch.nn.L1Loss(reduction='none').to(device)
+        
+        self.cat_train_loss = cl.DamageAttributeLoss(1,2) 
         self.test_loss_fn =torch.nn.L1Loss(reduction='none').to(device)
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=self.learning_rate, weight_decay=self.wd)
 
@@ -314,7 +316,7 @@ class Training:
         for epoch in tqdm.tqdm(range(self.num_epochs), desc=f"lr={args.learning_rate}, bs={args.batch_size}->"):
             # print(f"Running Epoch {epoch+1} / {self.num_epochs} for lr={args.learning_rate}, bs={args.batch_size}")
             # Iterate on train set with SGD (adam)
-            batch_ave_cat_tr_loss, batch_ave_num_tr_loss = train(self.model,self.experiment_x, self.optimizer, self.num_train_loss, self.cat_train_loss)
+            batch_ave_cat_tr_loss, batch_ave_num_tr_loss = train(self.model,self.experiment_x, self.optimizer, self.num_train_loss)
             self.ave_cat_train_loss.append(batch_ave_cat_tr_loss.cpu().numpy().item())
             self.ave_num_train_loss.append(batch_ave_num_tr_loss.cpu().numpy().item())
             # Check test set metrics (+ generate data if last epoch )
