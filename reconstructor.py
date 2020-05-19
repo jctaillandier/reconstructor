@@ -113,7 +113,7 @@ class My_dataLoader:
         self.train_size = n_train
         self.cols_with_sensitive = df_data.df.columns
         self.data_with_sensitive = df_data.df
-        self.label_with_sensitive = df_label
+        self.label_with_sensitive = df_label.df
 
         # Remove Sensitive attribute from input since we want to infer it 
         # Assumption is that sanitizer will not provide it 
@@ -183,7 +183,7 @@ class Autoencoder(nn.Module):
         x = self.encoder(xin)
         return x
     
-def train(model: torch.nn.Module, preprocessing:PreProcessing, optimizer:torch.optim, num_loss) -> int:
+def train(model: torch.nn.Module, preprocessing:PreProcessing, optimizer:torch.optim, cat_loss) -> int:
     model.train()
     num_train_loss = []
     cat_train_loss = []
@@ -194,38 +194,35 @@ def train(model: torch.nn.Module, preprocessing:PreProcessing, optimizer:torch.o
 
         # 1) Get idx of numerical, idx of categoricals
         #       Where? When loading data
-        # preprocessing.dataloader.num_idx
-        # preprocessing.dataloader.cat_idx
         if args.input_dataset != 'gansan':
             raise InterruptedError('Wrong Dataset. This loss uses column indexes for gansan input')
         # 2) calculate L1 on numerical
         #       Adjust to pass both losses in train and test functions
-        
-        cat_loss = cl.DamageAttributeLoss(preprocessing.dataloader.cat_idx,[], hard=True)
-        pdb.set_trace()
-        cat_loss_vector = cat_loss(output[:,6:].float(), target[:,6:].float())
+        cat_loss_vector = cat_loss(output.float(), target.float())
         cat_train_loss.append(sum(cat_loss_vector)/len(cat_loss_vector))
 
-        # 3) calculate Damage on Categorical
-        num_loss_vector = num_loss(output[:,:6].float(), target[:,:6].float())
-        num_train_loss.append(sum(num_loss_vector)/len(num_loss_vector))
-
+        # # 3) calculate Damage on Categorical
+        # num_loss_vector = num_loss(output[:,:6].float(), target[:,:6].float())
+        # num_train_loss.append(sum(num_loss_vector)/len(num_loss_vector))
+        
         # 4) Step over both vectors
         for loss in cat_loss_vector:
             loss.backward(retain_graph=True)
             optimizer.step()
 
-        for loss in num_loss_vector:
-            loss.backward(retain_graph=True)
-            optimizer.step()
-        
+    #     av_num_train_loss = torch.sum(num_loss_vector, dim=0)
+    #     for loss in av_num_train_loss:
+    #         loss.backward(retain_graph=True)
+    #         optimizer.step()
+    
+    # mean_num_loss = sum(av_num_train_loss) / batch_idx+1
+    # mean_num_loss = mean_num_loss.detach()
+
     mean_cat_loss = sum(cat_train_loss) / batch_idx+1
     mean_cat_loss = mean_cat_loss.detach()
 
-    mean_num_loss = sum(num_train_loss) / batch_idx+1
-    mean_num_loss = mean_num_loss.detach()
     
-    return mean_cat_loss, mean_num_loss
+    return mean_cat_loss#, mean_num_loss
 
 def test(model: torch.nn.Module, experiment: PreProcessing, test_loss_fn:torch.optim, last_epoch: bool) -> (int, pd.DataFrame):
     '''
@@ -291,11 +288,9 @@ class Training:
 
         if model_type == 'autoencoder':
             self.model = Autoencoder(self.in_dim, self.out_dim).to(device)
-
-        self.num_train_loss = torch.nn.L1Loss(reduction='none').to(device)
         
-        self.cat_train_loss = cl.DamageAttributeLoss(1,2) 
-        self.test_loss_fn =torch.nn.L1Loss(reduction='none').to(device)
+        self.cat_train_loss = cl.DamageAttributeLoss(self.experiment_x.dataloader.cat_idx, self.experiment_x.dataloader.num_idx, hard=True)
+        # self.test_loss_fn =torch.nn.L1Loss(reduction='none').to(device)
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=self.learning_rate, weight_decay=self.wd)
 
     def train_model(self):
@@ -316,13 +311,13 @@ class Training:
         for epoch in tqdm.tqdm(range(self.num_epochs), desc=f"lr={args.learning_rate}, bs={args.batch_size}->"):
             # print(f"Running Epoch {epoch+1} / {self.num_epochs} for lr={args.learning_rate}, bs={args.batch_size}")
             # Iterate on train set with SGD (adam)
-            batch_ave_cat_tr_loss, batch_ave_num_tr_loss = train(self.model,self.experiment_x, self.optimizer, self.num_train_loss)
+            batch_ave_cat_tr_loss = train(self.model,self.experiment_x, self.optimizer, self.cat_train_loss)
             self.ave_cat_train_loss.append(batch_ave_cat_tr_loss.cpu().numpy().item())
-            self.ave_num_train_loss.append(batch_ave_num_tr_loss.cpu().numpy().item())
+            # self.ave_num_train_loss.append(batch_ave_num_tr_loss.cpu().numpy().item())
             # Check test set metrics (+ generate data if last epoch )
             if epoch+1 == self.num_epochs:
                 last_ep=True
-            loss_per_dim_per_epoch, model_gen_data = test(self.model, self.experiment_x, args.los, last_ep)
+            loss_per_dim_per_epoch, model_gen_data = test(self.model, self.experiment_x, self.cat_train_loss, last_ep)
             loss = sum(loss_per_dim_per_epoch)/len(loss_per_dim_per_epoch)
 
             # To save as lowest loss averaged over all dim, for loss graph,
@@ -371,7 +366,9 @@ class Training:
         print(f"Training on {self.num_epochs} epochs completed in {(end-start)/60} minutes.\n")
 
         # Calculate and save the L1 distance on each encoded feature on Sanitized and Original Data, to compare and see whether the training got the distance closer. 
-        san_loss_fn = torch.nn.L1Loss(reduction='none')
+        # san_loss_fn = torch.nn.L1Loss(reduction='none')
+        san_loss_fn = self.cat_train_loss 
+        
         og_test_data = torch.tensor(self.experiment_x.dataloader.data_with_sensitive.values[self.experiment_x.dataloader.train_size:,:])
         og_test_labels = torch.tensor(self.experiment_x.dataloader.label_with_sensitive.values[self.experiment_x.dataloader.train_size:,:])
         self.og_test_dataset = torch.utils.data.TensorDataset(og_test_data, og_test_labels)
@@ -384,8 +381,7 @@ class Training:
         )       
         # Loss between saniized and original data. This is what we want to be worse than our recons loss
         for inputs, target in og_dataloader:
-            loss_dim_batch = san_loss_fn(inputs.float(), target.float())
-            loss_dim = loss_dim_batch.mean(dim=0)
+            loss_dim = san_loss_fn(inputs.float(), target.float())
             self.sanitized_loss = loss_dim.cpu().numpy().tolist()
             break
 
@@ -419,8 +415,7 @@ class Training:
             f.write(f"\n \n Learning Rate: {self.learning_rate} \n")
             f.write(f"Number Epochs: {self.num_epochs} \n")
             f.write(f"weight decay: {self.wd}\n")
-            f.write(f"Training Loss: {str(self.train_loss)}\n")
-            f.write(f"Test Loss: {str(self.test_loss_fn)} \n")
+            f.write(f"Training Loss: {str(self.cat_train_loss)}\n")
             f.write(f"self.self.optimizer: {str(self.optimizer)}\n")
             f.write(f"Model Architecture: {self.model}\n")
             f.write(f"Training completed in: {(end-start)/60:.2f} minutes\n")
@@ -445,11 +440,11 @@ class Training:
         plt.ylabel("Damage")
         plt.title("Train Loss on categorical features")
 
-        plt.subplot(1,2,3)
-        plt.plot(x_axis, self.ave_num_train_loss)
-        plt.xlabel("Epochs")
-        plt.ylabel("L1 Loss")
-        plt.title("Train Loss on numerical features")
+        # plt.subplot(1,2,3)
+        # plt.plot(x_axis, self.ave_num_train_loss)
+        # plt.xlabel("Epochs")
+        # plt.ylabel("L1 Loss")
+        # plt.title("Train Loss on numerical features")
 
 
         if_gansan = f"_{args.alpha}a" if args.input_dataset == 'gansan' else ""
