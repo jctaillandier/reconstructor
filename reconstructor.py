@@ -5,6 +5,7 @@ from Modules import datasets as d
 from Modules import results as r
 from Modules import customLosses as cl
 from Modules import classifiers 
+from Modules.models import VAE, Autoencoder
 
 # from Stats import Plots as Pl
 import csv, sys, math, json, tqdm, time, torch, random, os.path, warnings, argparse, importlib, torchvision, pdb
@@ -160,70 +161,34 @@ class My_dataLoader:
         num_ix = self.df_data.select_dtypes(include=['int64', 'float64']).columns
         self.c_ix = []
         self.n_ix = []
-        # for i, v in enumerate(self.df_data.columns.tolist()):
-        #     if v in cat_ix:
-        #         self.c_ix.append(i)
-        #     elif v in num_ix:
-        #         self.n_ix.append(i)
         self.num_idx, self.cat_idx = utils.filter_cols(self.df_data, '=')
 
-class Autoencoder(nn.Module):
-    def __init__(self, in_dim: int, out_dim: int):
-        super(Autoencoder, self).__init__()
-        self.encoder = nn.Sequential(
-            nn.Linear(in_dim, in_dim),
-            nn.LeakyReLU(),
-            nn.Linear(in_dim,out_dim),
-            nn.LeakyReLU(), 
-            nn.Linear(out_dim,out_dim),
-            nn.LeakyReLU()
-        )
-
-    def forward(self, xin):
-        x = self.encoder(xin)
-        return x
     
-def train(model: torch.nn.Module, preprocessing:PreProcessing, optimizer:torch.optim, cat_loss, num_loss) -> int:
+def train(model: torch.nn.Module, preprocessing:PreProcessing, optimizer:torch.optim, loss_fn) -> int:
     model.train()
     train_loss = []
-    cat_train_loss = []
     for batch_idx, (inputs, target) in enumerate(preprocessing.dataloader.train_loader):
         inputs, target = inputs.to(device), target.to(device)        
         
-        output = model(inputs.float())
 
-        # 1) Get idx of numerical, idx of categoricals
-        #       Where? When loading data
-        # preprocessing.dataloader.num_idx
-        # preprocessing.dataloader.cat_idx
-        if args.input_dataset != 'gansan':
-            raise InterruptedError('Wrong Dataset. This loss uses column indexes for gansan input')
-        # 2) calculate L1 on numerical
-        #       Adjust to pass both losses in train and test functions
-        pdb.set_trace()
-        cat_loss_vector = cat_loss.damage_categorical(output[:,6:].long(), target[:,6:].long())
-        cat_train_loss.append(sum(cat_loss_vector)/len(cat_loss_vector))
+        if args.model_type =='vae':
+            output, mu, logvar = model(inputs.float())
+            loss_vector = cl.vae_loss(inputs.float(), target.float(), mu, logvar)
+        else:
+            output = model(inputs.float())
+            loss_vector = loss_fn(output.float(), target.float())
+            pdb.set_trace()
+        train_loss.append(sum(loss_vector)/len(loss_vector))
 
-        # 3) calculate Damage on Categorical
-        num_loss_vector = num_loss(output[:,:6].float(), target[:,:6].float())
-        num_train_loss.append(sum(num_loss_vector)/len(num_loss_vector))
-
-        # 4) Step over both vectors
-        for loss in cat_loss_vector:
-            loss.backward(retain_graph=True)
-            optimizer.step()
-
-        for loss in num_loss_vector:
+        for loss in loss_vector:
             loss.backward(retain_graph=True)
             optimizer.step()
         
-    mean_cat_loss = sum(cat_train_loss) / batch_idx+1
-    mean_cat_loss = mean_cat_loss.detach()
+    mean_loss = sum(train_loss) / batch_idx+1
+    mean_loss = mean_loss.detach()
 
-    mean_num_loss = sum(num_train_loss) / batch_idx+1
-    mean_num_loss = mean_num_loss.detach()
     
-    return mean_cat_loss, mean_num_loss
+    return mean_loss
 
 def test(model: torch.nn.Module, experiment: PreProcessing, test_loss_fn:torch.optim, last_epoch: bool) -> (int, pd.DataFrame):
     '''
@@ -289,10 +254,10 @@ class Training:
 
         if model_type == 'autoencoder':
             self.model = Autoencoder(self.in_dim, self.out_dim).to(device)
+        elif model_type== 'vae':
+            self.model = VAE(self.in_dim, self.out_dim).to(device)
 
-        cat_loss = at.Damage()
-        self.num_train_loss = cat_loss
-        self.cat_train_loss = torch.nn.L1Loss(reduction='none').to(device) 
+        self.train_loss = torch.nn.L1Loss(reduction='none').to(device) 
         self.test_loss_fn =torch.nn.L1Loss(reduction='none').to(device)
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=self.learning_rate, weight_decay=self.wd)
 
@@ -304,8 +269,7 @@ class Training:
         start = time.time()
         lowest_test_loss = 9999999999999999
         self.test_accuracy = []
-        self.ave_cat_train_loss = []
-        self.ave_num_train_loss = []
+        self.ave_train_loss = []
         self.best_generated_data = []
         self.lowest_loss_ep = -1
         self.lowest_loss_per_dim = []
@@ -314,10 +278,9 @@ class Training:
         for epoch in tqdm.tqdm(range(self.num_epochs), desc=f"lr={args.learning_rate}, bs={args.batch_size}->"):
             # print(f"Running Epoch {epoch+1} / {self.num_epochs} for lr={args.learning_rate}, bs={args.batch_size}")
             # Iterate on train set with SGD (adam)
-            batch_ave_cat_tr_loss, batch_ave_num_tr_loss = train(self.model,self.experiment_x, self.optimizer, self.num_train_loss, self.cat_train_loss)
-            self.ave_cat_train_loss.append(batch_ave_cat_tr_loss.cpu().numpy().item())
-            self.ave_num_train_loss.append(batch_ave_num_tr_loss.cpu().numpy().item())
-            # Check test set metrics (+ generate data if last epoch )
+            batch_ave_tr_loss = train(self.model,self.experiment_x, self.optimizer, self.train_loss)
+            self.ave_train_loss.append(batch_ave_tr_loss.cpu().numpy().item())
+
             if epoch+1 == self.num_epochs:
                 last_ep=True
             loss_per_dim_per_epoch, model_gen_data = test(self.model, self.experiment_x, args.los, last_ep)
@@ -427,6 +390,7 @@ class Training:
         is_better_df.to_csv(path_base+f"reconstruction_appraisal.csv", index=False, float_format='%.6f')
         
 
+        
     def gen_loss_graphs(self):
         a = f'adult_{self.num_epochs}ep'
         x_axis = np.arange(1,self.num_epochs+1)
@@ -438,16 +402,10 @@ class Training:
         plt.title("Test Loss")
 
         plt.subplot(1,2,2)
-        plt.plot(x_axis, self.ave_cat_train_loss)
+        plt.plot(x_axis, self.ave_train_loss)
         plt.xlabel("Epochs")
         plt.ylabel("Damage")
         plt.title("Train Loss on categorical features")
-
-        plt.subplot(1,2,3)
-        plt.plot(x_axis, self.ave_num_train_loss)
-        plt.xlabel("Epochs")
-        plt.ylabel("L1 Loss")
-        plt.title("Train Loss on numerical features")
 
 
         if_gansan = f"_{args.alpha}a" if args.input_dataset == 'gansan' else ""
@@ -483,7 +441,7 @@ def main():
     experiment = PreProcessing()
 
     # Create training instance
-    training_instance = Training(experiment)
+    training_instance = Training(experiment, model_type=args.model_type)
 
     # Train the AE
     training_instance.train_model()

@@ -1,6 +1,7 @@
 import torch
 import numpy as np
 import torch.nn as nn
+from torch.nn import functional as F
 
 
 # Redefine function such as nllloss if you wish to use them as loss. See the example below
@@ -198,3 +199,20 @@ class MaeBerLoss(nn.Module):
         # gr = self.group_loss(disc_pred, disc_target, group)
         # First loss is the reconstruction Loss, second is the sensitive attribute one.
         return (1 - self.alpha_) * rec #, self.alpha_ * gr
+
+
+
+# Reconstruction + KL divergence losses summed over all elements and batch
+def vae_loss(recon_x, x, mu, logvar):
+    loss_fn = torch.nn.L1Loss(reduction='none')
+    l1_loss = loss_fn(recon_x, x,reduction='none')
+
+    # see Appendix B from VAE paper:
+    # Kingma and Welling. Auto-Encoding Variational Bayes. ICLR, 2014
+    # https://arxiv.org/abs/1312.6114
+    # 0.5 * sum(1 + log(sigma^2) - mu^2 - sigma^2)
+    KLD = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
+    # KLD = (KLD-mu)/logvar
+
+    # import pdb;pdb.set_trace()
+    return l1_loss + KLD
