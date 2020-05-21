@@ -16,7 +16,7 @@ class Autoencoder(nn.Module):
 
     def forward(self, xin):
         x = self.encoder(xin)
-        return x
+        return x.cpu().numpy()
 
 class VAE(nn.Module):
     def __init__(self, in_dim: int, out_dim: int):

@@ -114,7 +114,7 @@ class My_dataLoader:
         self.train_size = n_train
         self.cols_with_sensitive = df_data.df.columns
         self.data_with_sensitive = df_data.df
-        self.label_with_sensitive = df_label
+        self.label_with_sensitive = df_label.df
 
         # Remove Sensitive attribute from input since we want to infer it 
         # Assumption is that sanitizer will not provide it 
@@ -178,7 +178,7 @@ def train(model: torch.nn.Module, preprocessing:PreProcessing, optimizer:torch.o
             output = model(inputs.float())
             loss_vector = loss_fn(output.float(), target.float())
         loss_per_dim = torch.sum(loss_vector, dim=0) 
-        train_loss.append(sum(loss_vector)/len(loss_vector))
+        train_loss.append(sum(loss_per_dim)/len(loss_per_dim))
         count = 0
         for loss in loss_per_dim:
             loss.backward(retain_graph=True)
@@ -186,7 +186,6 @@ def train(model: torch.nn.Module, preprocessing:PreProcessing, optimizer:torch.o
             count +=1
     mean_loss = sum(train_loss) / batch_idx+1
     mean_loss = mean_loss.detach()
-
     
     return mean_loss
 
@@ -207,19 +206,22 @@ def test(model: torch.nn.Module, experiment: PreProcessing, test_loss_fn:torch.o
     '''
     model.eval()
     
-    test_loss = []
     batch_ave = 0
     with torch.no_grad():
         for inputs, target in experiment.dataloader.test_loader:
             inputs, target = inputs.to(device), target.to(device)
 
             output = model(inputs.float())
-            
-            np_output = output.cpu().numpy()
+            if args.model_type == 'vae':
+                pdb.set_trace()
+                output = output[0]
+            else:
+                np_output = output
             headers = experiment.data_pp.encoded_features_order
             gen_data = pd.DataFrame(np_output, columns=headers)
             # here I keep values for L1 distance on each dimensions
             loss = test_loss_fn(output.float(), target.float())
+            loss_per_dim = torch.sum(loss, dim=0) 
     
     if last_epoch == True:
         # To save sanitized test set to compare with generated data line by line
@@ -230,7 +232,8 @@ def test(model: torch.nn.Module, experiment: PreProcessing, test_loss_fn:torch.o
         some_enc.inverse_transform()
         final_df = pd.concat([some_enc.df, experiment.dataloader.sex_labelss], axis=1)
         final_df.to_csv(f"{model_saved}sanitized_testset_clean.csv", index=False)
-    return loss, gen_data 
+    loss_ = loss_per_dim
+    return loss_.detach(), gen_data 
 
 class Training:
     def __init__(self, experiment_x: PreProcessing, model_type:str='autoencoder'):
@@ -257,8 +260,7 @@ class Training:
         elif model_type== 'vae':
             self.model = VAE(self.in_dim, self.out_dim).to(device)
 
-        self.train_loss = torch.nn.L1Loss(reduction='none').to(device) 
-        self.test_loss_fn =torch.nn.L1Loss(reduction='none').to(device)
+        self.loss_fn = torch.nn.L1Loss(reduction='none').to(device) 
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=self.learning_rate, weight_decay=self.wd)
 
     def train_model(self):
@@ -278,14 +280,15 @@ class Training:
         for epoch in tqdm.tqdm(range(self.num_epochs), desc=f"lr={args.learning_rate}, bs={args.batch_size}->"):
             # print(f"Running Epoch {epoch+1} / {self.num_epochs} for lr={args.learning_rate}, bs={args.batch_size}")
             # Iterate on train set with SGD (adam)
-            batch_ave_tr_loss = train(self.model,self.experiment_x, self.optimizer, self.train_loss)
+            batch_ave_tr_loss = train(self.model,self.experiment_x, self.optimizer, self.loss_fn)
+            
             self.ave_train_loss.append(batch_ave_tr_loss.cpu().numpy().item())
 
             if epoch+1 == self.num_epochs:
                 last_ep=True
-            loss_per_dim_per_epoch, model_gen_data = test(self.model, self.experiment_x, args.los, last_ep)
+            loss_per_dim_per_epoch, model_gen_data = test(self.model, self.experiment_x, self.loss_fn, last_ep)
             loss = sum(loss_per_dim_per_epoch)/len(loss_per_dim_per_epoch)
-
+            
             # To save as lowest loss averaged over all dim, for loss graph,
             #   NOT for comparison for each dimensions
             if loss < lowest_test_loss:
@@ -380,8 +383,7 @@ class Training:
             f.write(f"\n \n Learning Rate: {self.learning_rate} \n")
             f.write(f"Number Epochs: {self.num_epochs} \n")
             f.write(f"weight decay: {self.wd}\n")
-            f.write(f"Training Loss: {str(self.train_loss)}\n")
-            f.write(f"Test Loss: {str(self.test_loss_fn)} \n")
+            f.write(f"Training Loss: {str(self.loss_fn)}\n")
             f.write(f"self.self.optimizer: {str(self.optimizer)}\n")
             f.write(f"Model Architecture: {self.model}\n")
             f.write(f"Training completed in: {(end-start)/60:.2f} minutes\n")

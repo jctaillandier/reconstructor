@@ -205,7 +205,7 @@ class MaeBerLoss(nn.Module):
 # Reconstruction + KL divergence losses summed over all elements and batch
 def vae_loss(recon_x, x, mu, logvar):
     loss_fn = torch.nn.L1Loss(reduction='none')
-    l1_loss = loss_fn(recon_x, x,reduction='none')
+    l1_loss = loss_fn(recon_x, x)
 
     # see Appendix B from VAE paper:
     # Kingma and Welling. Auto-Encoding Variational Bayes. ICLR, 2014
