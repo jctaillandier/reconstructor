@@ -16,7 +16,7 @@ class Autoencoder(nn.Module):
 
     def forward(self, xin):
         x = self.encoder(xin)
-        return x.cpu().numpy()
+        return x.cpu().detach()
 
 class VAE(nn.Module):
     def __init__(self, in_dim: int, out_dim: int):
@@ -44,7 +44,8 @@ class VAE(nn.Module):
     def forward(self, xin):
         mu, logvar = self.encode(xin)
         x = self.reparameterize(mu, logvar)
-        return self.decode(x), mu, logvar
+        x = self.decode(x)
+        return x.cpu().detach(), mu, logvar
 
 
 def train(epoch):

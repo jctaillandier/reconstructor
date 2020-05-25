@@ -173,7 +173,7 @@ def train(model: torch.nn.Module, preprocessing:PreProcessing, optimizer:torch.o
 
         if args.model_type =='vae':
             output, mu, logvar = model(inputs.float())
-            loss_vector = cl.vae_loss(inputs.float(), target.float(), mu, logvar)
+            loss_vector = cl.vae_loss(output.float(), target.float(), mu, logvar)
         else:
             output = model(inputs.float())
             loss_vector = loss_fn(output.float(), target.float())
@@ -210,30 +210,31 @@ def test(model: torch.nn.Module, experiment: PreProcessing, test_loss_fn:torch.o
     with torch.no_grad():
         for inputs, target in experiment.dataloader.test_loader:
             inputs, target = inputs.to(device), target.to(device)
-
-            output = model(inputs.float())
-            if args.model_type == 'vae':
-                pdb.set_trace()
-                output = output[0]
-            else:
-                np_output = output
+            
             headers = experiment.data_pp.encoded_features_order
-            gen_data = pd.DataFrame(np_output, columns=headers)
             # here I keep values for L1 distance on each dimensions
-            loss = test_loss_fn(output.float(), target.float())
+            if args.model_type =='vae':
+                output, mu, logvar = model(inputs.float())
+                loss = cl.vae_loss(output.float(), target.float(), mu, logvar)
+                
+            else:
+                output = model(inputs.float())
+                loss = test_loss_fn(output.float(), target.float())
             loss_per_dim = torch.sum(loss, dim=0) 
     
-    if last_epoch == True:
-        # To save sanitized test set to compare with generated data line by line
-        data = pd.DataFrame(inputs.cpu().numpy(), columns=experiment.data_pp.encoded_features_order)
-        data.to_csv(f"{model_saved}sanitized_testset_raw.csv", index=False)
-        some_enc = d.Encoder(f"{model_saved}sanitized_testset_raw.csv")
-        some_enc.load_parameters(path_to_exp,f"{args.input_dataset}_parameters_data.prm")
-        some_enc.inverse_transform()
-        final_df = pd.concat([some_enc.df, experiment.dataloader.sex_labelss], axis=1)
-        final_df.to_csv(f"{model_saved}sanitized_testset_clean.csv", index=False)
+            gen_data = pd.DataFrame(output.numpy(), columns=headers)
+    
+    # To save sanitized test set to compare with generated data line by line
+    data = pd.DataFrame(inputs.cpu().numpy(), columns=experiment.data_pp.encoded_features_order)
+    data.to_csv(f"{model_saved}sanitized_testset_raw.csv", index=False)
+    some_enc = d.Encoder(f"{model_saved}sanitized_testset_raw.csv")
+    some_enc.load_parameters(path_to_exp,f"{args.input_dataset}_parameters_data.prm")
+    some_enc.inverse_transform()
+    final_df = pd.concat([some_enc.df, experiment.dataloader.sex_labelss], axis=1)
+    final_df.to_csv(f"{model_saved}sanitized_testset_clean.csv", index=False)
     loss_ = loss_per_dim
-    return loss_.detach(), gen_data 
+
+    return loss_.detach(), gen_data
 
 class Training:
     def __init__(self, experiment_x: PreProcessing, model_type:str='autoencoder'):
@@ -305,7 +306,7 @@ class Training:
 
             loss_df = pd.DataFrame([self.lowest_loss_per_dim], columns=self.experiment_x.data_pp.encoded_features_order)
             self.test_accuracy.append(loss)#/len(self.experiment_x.dataloader.test_loader.dataset))
-
+        
         self.test_gen = pd.DataFrame(self.best_generated_data.values, columns=self.experiment_x.data_pp.encoded_features_order)
         self.test_gen.to_csv(f"{model_saved}best_loss_raw_generated.csv", index=False)
         if args.input_dataset =='gansan':
@@ -407,7 +408,7 @@ class Training:
         plt.plot(x_axis, self.ave_train_loss)
         plt.xlabel("Epochs")
         plt.ylabel("Damage")
-        plt.title("Train Loss on categorical features")
+        plt.title("Train Loss")
 
 
         if_gansan = f"_{args.alpha}a" if args.input_dataset == 'gansan' else ""
