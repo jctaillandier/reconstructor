@@ -230,7 +230,7 @@ class DamageAttributeLoss(nn.Module):
             self.categorical_loss_func = AccuracyLoss(device=device)
         self.numerical_loss_func = self.c_l1_mean
         self.group_loss = BalancedErrorRateLoss(targetBer=ber_target, device=device)
-        self.alpha_ = alpha_
+        # self.alpha_ = alpha_
 
     def hard_categorical(self, data, target):
         """
@@ -285,6 +285,7 @@ class DamageAttributeLoss(nn.Module):
         rec = rec.view(-1)
         for c in self.cat_indexes:
             # if len(c) != 0:
+                import pdb; pdb.set_trace()
                 target = self.process_target(data_target[:, c])
                 l = self.categorical_loss_func(data_[:, c], target)
                 if len(rec) != 0:
