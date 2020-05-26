@@ -169,14 +169,13 @@ def train(model: torch.nn.Module, preprocessing:PreProcessing, optimizer:torch.o
         if args.model_type =='vae':
             output, mu, logvar = model(inputs.float())
             loss_vector = cl.vae_loss(output.float(), target.float(), mu, logvar)
+            loss_per_dim = torch.sum(loss_vector, dim=0) 
         else:
             output = model(inputs.float())
-            loss_vector = loss_fn(output.float(), target.float())
+            loss_per_dim = loss_fn(output.float(), target.float())
             
-        loss_per_dim = torch.sum(loss_vector, dim=0) 
         train_loss.append(sum(loss_per_dim)/len(loss_per_dim))
         count = 0
-        # pdb.set_trace()
         for loss in loss_per_dim:
             loss.backward(retain_graph=True)
             optimizer.step()
@@ -213,11 +212,12 @@ def test(model: torch.nn.Module, experiment: PreProcessing, test_loss_fn:torch.o
             if args.model_type =='vae':
                 output, mu, logvar = model(inputs.float())
                 loss = cl.vae_loss(output.float(), target.float(), mu, logvar)
+                loss = torch.sum(loss, dim=0) 
                 
             else:
                 output = model(inputs.float())
                 loss = test_loss_fn(output.float(), target.float())
-            loss_per_dim = torch.sum(loss, dim=0) 
+            
     
             gen_data = pd.DataFrame(output.numpy(), columns=headers)
     
@@ -229,9 +229,8 @@ def test(model: torch.nn.Module, experiment: PreProcessing, test_loss_fn:torch.o
     some_enc.inverse_transform()
     final_df = pd.concat([some_enc.df, experiment.dataloader.sex_labelss], axis=1)
     final_df.to_csv(f"{model_saved}sanitized_testset_clean.csv", index=False)
-    loss_ = loss_per_dim
 
-    return loss_.detach(), gen_data
+    return loss.detach(), gen_data
 
 class Training:
     def __init__(self, experiment_x: PreProcessing, model_type:str='autoencoder'):
@@ -258,7 +257,7 @@ class Training:
         elif model_type== 'vae':
             self.model = VAE(self.in_dim, self.out_dim).to(device)
 
-        self.loss_fn = cl.DamageAttributeLoss(self.experiment_x.dataloader.cat_idx, self.experiment_x.dataloader.num_idx, hard=False)
+        self.loss_fn = cl.DamageAttributeLoss(self.experiment_x.dataloader.cat_idx, self.experiment_x.dataloader.num_idx, hard=True)
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=self.learning_rate, weight_decay=self.wd)
 
     def train_model(self):
@@ -284,6 +283,7 @@ class Training:
             if epoch+1 == self.num_epochs:
                 last_ep=True
             loss_per_dim_per_epoch, model_gen_data = test(self.model, self.experiment_x, self.loss_fn, last_ep)
+            pdb.set_trace()
             loss = sum(loss_per_dim_per_epoch)/len(loss_per_dim_per_epoch)
             
             # To save as lowest loss averaged over all dim, for loss graph,
