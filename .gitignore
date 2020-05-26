@@ -1,10 +1,4 @@
 .ipynb_checkpoints 
 __pycache__
-<<<<<<< HEAD
-.vscode
-*.out
-experiments/
-=======
 experiments/*
 ./*.out
->>>>>>> 57d843800f1265dfb95ab5c3e03d25fea6cb6521
