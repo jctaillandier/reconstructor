@@ -273,30 +273,6 @@ class DamageAttributeLoss(nn.Module):
         We can therefore do two solutions:
         
         hard = False: We pick the right element and we maximise the probability of the element, hence the accuracy
-<<<<<<< HEAD
-         overall: suppose target is
-         t =
-         1, 0, 0
-         0, 0, 1
-         We convert the target into indexes, yielding:
-         0
-         2
-         And using the model output above, we obtain the vector
-         v =
-         0.46
-         0.003
-         which we compute the mean vm = v.mean() == accuracy, and we minimise the accuracy error 1 - vm
-
-         hard = True, we want to impose some threshold on other values as well, not only on the specific target
-         we compute the l1 per index, yielding
-         0.54, 0.64, 0.001
-         0.001, 0.002, 0.997
-        We compute the mean per column
-        cm =
-         0.2705, 0.321, 0.499
-         then we sum and divide by the number of element in cm different from 0. Yielding the proportion of mistakes if
-         o were equal to o_perfect
-=======
             overall: suppose target is
             t =
             1, 0, 0
@@ -319,7 +295,6 @@ class DamageAttributeLoss(nn.Module):
             0.2705, 0.321, 0.499
             then we sum and divide by the number of element in cm different from 0. Yielding the proportion of mistakes if
             o were equal to o_perfect
->>>>>>> vae
 
         """
         all_wrong = self.c_l1_mean(data, target)
@@ -333,10 +308,6 @@ class DamageAttributeLoss(nn.Module):
         rec = rec.view(-1)
         for c in self.cat_indexes:
             # if len(c) != 0:
-<<<<<<< HEAD
-                import pdb; pdb.set_trace()
-=======
->>>>>>> vae
                 target = self.process_target(data_target[:, c])
                 l = self.categorical_loss_func(data_[:, c], target)
                 if len(rec) != 0:

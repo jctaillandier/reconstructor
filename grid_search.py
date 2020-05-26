@@ -19,13 +19,8 @@ def launch(bs: int, lr:float, ep:int, alpha:float, exp_name:str, model_type:str)
 parser = argparse.ArgumentParser()
 args = parse_arguments(parser)
 
-<<<<<<< HEAD
-lrs = [1e-5,1e-6, 1e-7]
-bses = [1024]
-=======
 lrs = [1e-5, 1e-6, 1e-7]
 bses = [2048]
->>>>>>> vae
 input_dataset = args.input_dataset
 
 Parallel(n_jobs=args.cpu_parallel)(delayed(launch)(bs, lr, args.epochs, args.alpha, args.exp_name, args.model_type) for lr in lrs for bs in bses)
