@@ -200,10 +200,6 @@ class MaeBerLoss(nn.Module):
         # First loss is the reconstruction Loss, second is the sensitive attribute one.
         return (1 - self.alpha_) * rec #, self.alpha_ * gr
 
-
-
-<<<<<<< HEAD
-=======
 # Reconstruction + KL divergence losses summed over all elements and batch
 def vae_loss(recon_x, x, mu, logvar):
     loss_fn = torch.nn.L1Loss(reduction='none')
@@ -219,16 +215,11 @@ def vae_loss(recon_x, x, mu, logvar):
     # import pdb;pdb.set_trace()
     return l1_loss + KLD
 
->>>>>>> vae
 class DamageAttributeLoss(nn.Module):
     """ Compute the loss per attribute and return it as a vector. """
 
     def __init__(self, categorical_indexes, numerical_indexes, hard=False, alpha_=0.25, device="cpu", ber_target=1 / 2,
-<<<<<<< HEAD
-                 *args, **kwargs):
-=======
                     *args, **kwargs):
->>>>>>> vae
         """
         Initialisation. We assume that for numerical columns, we will use the l1-loss. Change accordingly
         :param categorical_indexes: indexes of the categorical columns in list of dict
