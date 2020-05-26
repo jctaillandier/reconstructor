@@ -77,7 +77,6 @@ class Damage:
                         ]
                     }
                 )
-            # import pdb;pdb.set_trace()
         return damage
 
     def damage_numerical(self, num_orig: pd.core.frame.DataFrame, num_transformed: pd.core.frame.DataFrame):
