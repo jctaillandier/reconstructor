@@ -76,10 +76,6 @@ class PreProcessing:
         # Encode Input data if needed
         self.data_pp = d.Encoder(import_path)
         self.labels_pp = d.Encoder(label_path)
-
-        # remove income as it should not be available in sanitized nor reconstruction
-        # self.labels_pp.df.drop('income', axis=1, inplace=True)
-        # self.data_pp.df.drop('income',axis=1, inplace=True)
         
         # Encode if gansan input
         if args.input_dataset == 'gansan':
@@ -169,7 +165,6 @@ def train(model: torch.nn.Module, preprocessing:PreProcessing, optimizer:torch.o
     train_loss = []
     for batch_idx, (inputs, target) in enumerate(preprocessing.dataloader.train_loader):
         inputs, target = inputs.to(device), target.to(device)        
-        
 
         if args.model_type =='vae':
             output, mu, logvar = model(inputs.float())
@@ -177,9 +172,11 @@ def train(model: torch.nn.Module, preprocessing:PreProcessing, optimizer:torch.o
         else:
             output = model(inputs.float())
             loss_vector = loss_fn(output.float(), target.float())
+            
         loss_per_dim = torch.sum(loss_vector, dim=0) 
         train_loss.append(sum(loss_per_dim)/len(loss_per_dim))
         count = 0
+        # pdb.set_trace()
         for loss in loss_per_dim:
             loss.backward(retain_graph=True)
             optimizer.step()
@@ -279,8 +276,7 @@ class Training:
         last_ep = False
 
         for epoch in tqdm.tqdm(range(self.num_epochs), desc=f"lr={args.learning_rate}, bs={args.batch_size}->"):
-            # print(f"Running Epoch {epoch+1} / {self.num_epochs} for lr={args.learning_rate}, bs={args.batch_size}")
-            # Iterate on train set with SGD (adam)
+            
             batch_ave_tr_loss = train(self.model,self.experiment_x, self.optimizer, self.loss_fn)
             
             self.ave_train_loss.append(batch_ave_tr_loss.cpu().numpy().item())
@@ -314,6 +310,7 @@ class Training:
                 self.gen_encoder.load_parameters(path_to_exp, prmFile=f"{args.input_dataset}_parameters_data.prm")
                 self.gen_encoder.inverse_transform()
                 final_df = pd.concat([self.gen_encoder.df, self.experiment_x.dataloader.sex_labelss], axis=1)
+
                 # final_df_clean = pd.concat([self.gen_encoder.df, self.experiment_x.dataloader.sex_labelss], axis=1)
                 final_df.to_csv(f"{model_saved}best_loss_clean_generated.csv", index=False)
 
