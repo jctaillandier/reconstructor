@@ -258,7 +258,7 @@ class Training:
         elif model_type== 'vae':
             self.model = VAE(self.in_dim, self.out_dim).to(device)
 
-        self.loss_fn = torch.nn.L1Loss(reduction='none').to(device) 
+        self.loss_fn = cl.DamageAttributeLoss(self.experiment_x.dataloader.cat_idx, self.experiment_x.dataloader.num_idx, hard=False)
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=self.learning_rate, weight_decay=self.wd)
 
     def train_model(self):
