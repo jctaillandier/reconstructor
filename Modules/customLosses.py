@@ -212,7 +212,6 @@ def vae_loss(recon_x, x, mu, logvar):
     KLD = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
     # KLD = (KLD-mu)/logvar
 
-    # import pdb;pdb.set_trace()
     return l1_loss + KLD
 
 class DamageAttributeLoss(nn.Module):

@@ -258,6 +258,7 @@ class Training:
             self.model = VAE(self.in_dim, self.out_dim).to(device)
 
         self.loss_fn = cl.DamageAttributeLoss(self.experiment_x.dataloader.cat_idx, self.experiment_x.dataloader.num_idx, hard=True)
+        self.l1_loss = nn.L1Loss(reduction=None)
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=self.learning_rate, weight_decay=self.wd)
 
     def train_model(self):
@@ -283,7 +284,6 @@ class Training:
             if epoch+1 == self.num_epochs:
                 last_ep=True
             loss_per_dim_per_epoch, model_gen_data = test(self.model, self.experiment_x, self.loss_fn, last_ep)
-            pdb.set_trace()
             loss = sum(loss_per_dim_per_epoch)/len(loss_per_dim_per_epoch)
             
             # To save as lowest loss averaged over all dim, for loss graph,
@@ -334,7 +334,7 @@ class Training:
 
         # Calculate and save the L1 distance on each encoded feature on Sanitized and Original Data, to compare and see whether the training got the distance closer. 
         # san_loss_fn = torch.nn.L1Loss(reduction='none')
-        san_loss_fn = self.cat_train_loss 
+        san_loss_fn = self.loss_fn
         
         og_test_data = torch.tensor(self.experiment_x.dataloader.data_with_sensitive.values[self.experiment_x.dataloader.train_size:,:])
         og_test_labels = torch.tensor(self.experiment_x.dataloader.label_with_sensitive.values[self.experiment_x.dataloader.train_size:,:])
