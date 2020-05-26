@@ -5,6 +5,7 @@ from Modules import datasets as d
 from Modules import results as r
 from Modules import customLosses as cl
 from Modules import classifiers 
+from Modules.models import VAE, Autoencoder
 
 # from Stats import Plots as Pl
 import csv, sys, math, json, tqdm, time, torch, random, os.path, warnings, argparse, importlib, torchvision, pdb
@@ -160,28 +161,8 @@ class My_dataLoader:
         num_ix = self.df_data.select_dtypes(include=['int64', 'float64']).columns
         self.c_ix = []
         self.n_ix = []
-        # for i, v in enumerate(self.df_data.columns.tolist()):
-        #     if v in cat_ix:
-        #         self.c_ix.append(i)
-        #     elif v in num_ix:
-        #         self.n_ix.append(i)
         self.num_idx, self.cat_idx = utils.filter_cols(self.df_data, '=')
 
-class Autoencoder(nn.Module):
-    def __init__(self, in_dim: int, out_dim: int):
-        super(Autoencoder, self).__init__()
-        self.encoder = nn.Sequential(
-            nn.Linear(in_dim, in_dim),
-            nn.LeakyReLU(),
-            nn.Linear(in_dim,out_dim),
-            nn.LeakyReLU(), 
-            nn.Linear(out_dim,out_dim),
-            nn.LeakyReLU()
-        )
-
-    def forward(self, xin):
-        x = self.encoder(xin)
-        return x
     
 def train(model: torch.nn.Module, preprocessing:PreProcessing, optimizer:torch.optim, cat_loss) -> int:
     model.train()
@@ -224,6 +205,7 @@ def train(model: torch.nn.Module, preprocessing:PreProcessing, optimizer:torch.o
     
     return mean_cat_loss#, mean_num_loss
 
+
 def test(model: torch.nn.Module, experiment: PreProcessing, test_loss_fn:torch.optim, last_epoch: bool) -> (int, pd.DataFrame):
     '''
         Does the test loop and if last epoch, decodes data, generates new data, returns and saves both 
@@ -241,30 +223,35 @@ def test(model: torch.nn.Module, experiment: PreProcessing, test_loss_fn:torch.o
     '''
     model.eval()
     
-    test_loss = []
     batch_ave = 0
     with torch.no_grad():
         for inputs, target in experiment.dataloader.test_loader:
             inputs, target = inputs.to(device), target.to(device)
-
-            output = model(inputs.float())
             
-            np_output = output.cpu().numpy()
             headers = experiment.data_pp.encoded_features_order
-            gen_data = pd.DataFrame(np_output, columns=headers)
             # here I keep values for L1 distance on each dimensions
-            loss = test_loss_fn(output.float(), target.float())
+            if args.model_type =='vae':
+                output, mu, logvar = model(inputs.float())
+                loss = cl.vae_loss(output.float(), target.float(), mu, logvar)
+                
+            else:
+                output = model(inputs.float())
+                loss = test_loss_fn(output.float(), target.float())
+            loss_per_dim = torch.sum(loss, dim=0) 
     
-    if last_epoch == True:
-        # To save sanitized test set to compare with generated data line by line
-        data = pd.DataFrame(inputs.cpu().numpy(), columns=experiment.data_pp.encoded_features_order)
-        data.to_csv(f"{model_saved}sanitized_testset_raw.csv", index=False)
-        some_enc = d.Encoder(f"{model_saved}sanitized_testset_raw.csv")
-        some_enc.load_parameters(path_to_exp,f"{args.input_dataset}_parameters_data.prm")
-        some_enc.inverse_transform()
-        final_df = pd.concat([some_enc.df, experiment.dataloader.sex_labelss], axis=1)
-        final_df.to_csv(f"{model_saved}sanitized_testset_clean.csv", index=False)
-    return loss, gen_data 
+            gen_data = pd.DataFrame(output.numpy(), columns=headers)
+    
+    # To save sanitized test set to compare with generated data line by line
+    data = pd.DataFrame(inputs.cpu().numpy(), columns=experiment.data_pp.encoded_features_order)
+    data.to_csv(f"{model_saved}sanitized_testset_raw.csv", index=False)
+    some_enc = d.Encoder(f"{model_saved}sanitized_testset_raw.csv")
+    some_enc.load_parameters(path_to_exp,f"{args.input_dataset}_parameters_data.prm")
+    some_enc.inverse_transform()
+    final_df = pd.concat([some_enc.df, experiment.dataloader.sex_labelss], axis=1)
+    final_df.to_csv(f"{model_saved}sanitized_testset_clean.csv", index=False)
+    loss_ = loss_per_dim
+
+    return loss_.detach(), gen_data
 
 class Training:
     def __init__(self, experiment_x: PreProcessing, model_type:str='autoencoder'):
@@ -291,6 +278,7 @@ class Training:
         
         self.cat_train_loss = cl.DamageAttributeLoss(self.experiment_x.dataloader.cat_idx, self.experiment_x.dataloader.num_idx, hard=False)
         # self.test_loss_fn =torch.nn.L1Loss(reduction='none').to(device)
+
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=self.learning_rate, weight_decay=self.wd)
 
     def train_model(self):
@@ -301,8 +289,7 @@ class Training:
         start = time.time()
         lowest_test_loss = 9999999999999999
         self.test_accuracy = []
-        self.ave_cat_train_loss = []
-        self.ave_num_train_loss = []
+        self.ave_train_loss = []
         self.best_generated_data = []
         self.lowest_loss_ep = -1
         self.lowest_loss_per_dim = []
@@ -318,8 +305,9 @@ class Training:
             if epoch+1 == self.num_epochs:
                 last_ep=True
             loss_per_dim_per_epoch, model_gen_data = test(self.model, self.experiment_x, self.cat_train_loss, last_ep)
-            loss = sum(loss_per_dim_per_epoch)/len(loss_per_dim_per_epoch)
 
+            loss = sum(loss_per_dim_per_epoch)/len(loss_per_dim_per_epoch)
+            
             # To save as lowest loss averaged over all dim, for loss graph,
             #   NOT for comparison for each dimensions
             if loss < lowest_test_loss:
@@ -336,7 +324,7 @@ class Training:
 
             loss_df = pd.DataFrame([self.lowest_loss_per_dim], columns=self.experiment_x.data_pp.encoded_features_order)
             self.test_accuracy.append(loss)#/len(self.experiment_x.dataloader.test_loader.dataset))
-
+        
         self.test_gen = pd.DataFrame(self.best_generated_data.values, columns=self.experiment_x.data_pp.encoded_features_order)
         self.test_gen.to_csv(f"{model_saved}best_loss_raw_generated.csv", index=False)
         if args.input_dataset =='gansan':
@@ -416,6 +404,7 @@ class Training:
             f.write(f"Number Epochs: {self.num_epochs} \n")
             f.write(f"weight decay: {self.wd}\n")
             f.write(f"Training Loss: {str(self.cat_train_loss)}\n")
+
             f.write(f"self.self.optimizer: {str(self.optimizer)}\n")
             f.write(f"Model Architecture: {self.model}\n")
             f.write(f"Training completed in: {(end-start)/60:.2f} minutes\n")
@@ -424,6 +413,7 @@ class Training:
         is_better_df.to_csv(path_base+f"reconstruction_appraisal.csv", index=False, float_format='%.6f')
         
 
+        
     def gen_loss_graphs(self):
         a = f'adult_{self.num_epochs}ep'
         x_axis = np.arange(1,self.num_epochs+1)
@@ -435,16 +425,11 @@ class Training:
         plt.title("Test Loss")
 
         plt.subplot(1,2,2)
-        plt.plot(x_axis, self.ave_cat_train_loss)
+        plt.plot(x_axis, self.ave_train_loss)
         plt.xlabel("Epochs")
         plt.ylabel("Damage")
-        plt.title("Train Loss on categorical features")
 
-        # plt.subplot(1,2,3)
-        # plt.plot(x_axis, self.ave_num_train_loss)
-        # plt.xlabel("Epochs")
-        # plt.ylabel("L1 Loss")
-        # plt.title("Train Loss on numerical features")
+        plt.title("Train Loss")
 
 
         if_gansan = f"_{args.alpha}a" if args.input_dataset == 'gansan' else ""
@@ -480,7 +465,7 @@ def main():
     experiment = PreProcessing()
 
     # Create training instance
-    training_instance = Training(experiment)
+    training_instance = Training(experiment, model_type=args.model_type)
 
     # Train the AE
     training_instance.train_model()
