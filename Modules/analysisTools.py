@@ -69,7 +69,15 @@ class Damage:
         """
         damage = {}
         for c in cat_orig:
-            damage.update({c: [(cat_orig[c] == cat_transformed[c]).mean()]})
+            damage.update(
+                    {
+                        c: [
+                            ((cat_orig[c] == cat_transformed[c])*1).float().mean()
+                            
+                        ]
+                    }
+                )
+            # import pdb;pdb.set_trace()
         return damage
 
     def damage_numerical(self, num_orig: pd.core.frame.DataFrame, num_transformed: pd.core.frame.DataFrame):
@@ -87,12 +95,12 @@ class Damage:
         if isinstance(transformed, d.Encoder):
             transformed = transformed.df
 
-        cat_clm = original.select_dtypes(exclude=["int", "float", "double"]).columns.tolist()
-        num_clm = original.select_dtypes(include=["int", "float", "double"]).columns.tolist()
-        d_cat = self.damage_categorical(original[cat_clm], transformed[cat_clm])
-        d_num = self.damage_numerical(original[num_clm], transformed[num_clm])
-
-        return d_cat, d_num
+        # cat_clm = original.select_dtypes(exclude=["int", "float", "double"]).columns.tolist()
+        # num_clm = original.select_dtypes(include=["int", "float", "double"]).columns.tolist()
+        d_cat = self.damage_categorical(original, transformed)
+        # d_num = self.damage_numerical(original[num_clm], transformed[num_clm])
+        
+        return d_cat
 
 
 class DimensionalityReduction(Visualisation.Visualize):

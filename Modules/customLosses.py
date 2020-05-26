@@ -1,6 +1,7 @@
 import torch
 import numpy as np
 import torch.nn as nn
+from torch.nn import functional as F
 
 
 # Redefine function such as nllloss if you wish to use them as loss. See the example below
@@ -201,11 +202,33 @@ class MaeBerLoss(nn.Module):
 
 
 
+<<<<<<< HEAD
+=======
+# Reconstruction + KL divergence losses summed over all elements and batch
+def vae_loss(recon_x, x, mu, logvar):
+    loss_fn = torch.nn.L1Loss(reduction='none')
+    l1_loss = loss_fn(recon_x, x)
+
+    # see Appendix B from VAE paper:
+    # Kingma and Welling. Auto-Encoding Variational Bayes. ICLR, 2014
+    # https://arxiv.org/abs/1312.6114
+    # 0.5 * sum(1 + log(sigma^2) - mu^2 - sigma^2)
+    KLD = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
+    # KLD = (KLD-mu)/logvar
+
+    # import pdb;pdb.set_trace()
+    return l1_loss + KLD
+
+>>>>>>> vae
 class DamageAttributeLoss(nn.Module):
     """ Compute the loss per attribute and return it as a vector. """
 
     def __init__(self, categorical_indexes, numerical_indexes, hard=False, alpha_=0.25, device="cpu", ber_target=1 / 2,
+<<<<<<< HEAD
                  *args, **kwargs):
+=======
+                    *args, **kwargs):
+>>>>>>> vae
         """
         Initialisation. We assume that for numerical columns, we will use the l1-loss. Change accordingly
         :param categorical_indexes: indexes of the categorical columns in list of dict
@@ -250,6 +273,7 @@ class DamageAttributeLoss(nn.Module):
         We can therefore do two solutions:
         
         hard = False: We pick the right element and we maximise the probability of the element, hence the accuracy
+<<<<<<< HEAD
          overall: suppose target is
          t =
          1, 0, 0
@@ -272,6 +296,30 @@ class DamageAttributeLoss(nn.Module):
          0.2705, 0.321, 0.499
          then we sum and divide by the number of element in cm different from 0. Yielding the proportion of mistakes if
          o were equal to o_perfect
+=======
+            overall: suppose target is
+            t =
+            1, 0, 0
+            0, 0, 1
+            We convert the target into indexes, yielding:
+            0
+            2
+            And using the model output above, we obtain the vector
+            v =
+            0.46
+            0.003
+            which we compute the mean vm = v.mean() == accuracy, and we minimise the accuracy error 1 - vm
+
+            hard = True, we want to impose some threshold on other values as well, not only on the specific target
+            we compute the l1 per index, yielding
+            0.54, 0.64, 0.001
+            0.001, 0.002, 0.997
+        We compute the mean per column
+        cm =
+            0.2705, 0.321, 0.499
+            then we sum and divide by the number of element in cm different from 0. Yielding the proportion of mistakes if
+            o were equal to o_perfect
+>>>>>>> vae
 
         """
         all_wrong = self.c_l1_mean(data, target)
@@ -285,7 +333,10 @@ class DamageAttributeLoss(nn.Module):
         rec = rec.view(-1)
         for c in self.cat_indexes:
             # if len(c) != 0:
+<<<<<<< HEAD
                 import pdb; pdb.set_trace()
+=======
+>>>>>>> vae
                 target = self.process_target(data_target[:, c])
                 l = self.categorical_loss_func(data_[:, c], target)
                 if len(rec) != 0:

@@ -9,20 +9,26 @@ def parse_arguments(parser):
     parser.add_argument('-a','--alpha', type=float, default=0.9875, help='Value of alpha used when  sanitizing the dataset we use as input.', required=False, choices=[0.2,0.8,0.9875])
     parser.add_argument('-ep','--epochs', type=int, help='Number of epochs to train the model.', required=True)
     parser.add_argument('-n','--exp_name', type=str, default='', help='Name of experiemtn', required=False)
+    parser.add_argument('-mt','--model_type', type=str, default='autoencoder', help='autoencoder or vae', required=False)
     args = parser.parse_args()
     return args
 
-def launch(bs: int, lr:float, ep:int, alpha:float, exp_name:str):
-    os.system(f"python3 reconstructor.py -ep={ep} -in=gansan -lr={lr} -bs={bs} -a={alpha} -n=\'grid-search_{exp_name}\'")
+def launch(bs: int, lr:float, ep:int, alpha:float, exp_name:str, model_type:str):
+    os.system(f"python3 reconstructor.py -ep={ep} -in=gansan -lr={lr} -bs={bs} -a={alpha} -mt={model_type} -n=\'grid-search_{exp_name}\'")
 
 parser = argparse.ArgumentParser()
 args = parse_arguments(parser)
 
+<<<<<<< HEAD
 lrs = [1e-5,1e-6, 1e-7]
 bses = [1024]
+=======
+lrs = [1e-5, 1e-6, 1e-7]
+bses = [2048]
+>>>>>>> vae
 input_dataset = args.input_dataset
 
-Parallel(n_jobs=args.cpu_parallel)(delayed(launch)(bs, lr, args.epochs, args.alpha, args.exp_name) for lr in lrs for bs in bses)
+Parallel(n_jobs=args.cpu_parallel)(delayed(launch)(bs, lr, args.epochs, args.alpha, args.exp_name, args.model_type) for lr in lrs for bs in bses)
 
 # Send Notification that Job is completed
 text = f"Grid Search on {input_dataset} with {args.epochs} epochs, learning rates = {lrs} and batch sizes = {bses} Completed."
