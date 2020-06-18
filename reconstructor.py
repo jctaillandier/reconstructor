@@ -212,7 +212,7 @@ def test(model: torch.nn.Module, experiment: PreProcessing, test_loss_fn:torch.o
             if args.model_type =='vae':
                 output, mu, logvar = model(inputs.float())
                 loss = cl.vae_loss(output.float(), target.float(), mu, logvar)
-                loss = torch.sum(loss, dim=0) 
+                loss = torch.sum(loss, dim=0)
                 
             else:
                 output = model(inputs.float())
@@ -229,7 +229,7 @@ def test(model: torch.nn.Module, experiment: PreProcessing, test_loss_fn:torch.o
     some_enc.inverse_transform()
     final_df = pd.concat([some_enc.df, experiment.dataloader.sex_labelss], axis=1)
     final_df.to_csv(f"{model_saved}sanitized_testset_clean.csv", index=False)
-
+    
     return loss.detach(), gen_data
 
 class Training:

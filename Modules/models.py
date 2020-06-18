@@ -22,11 +22,11 @@ class VAE(nn.Module):
     def __init__(self, in_dim: int, out_dim: int):
         super(VAE, self).__init__()
 
-        # self.fc1 = nn.Linear(in_dim, 50)
-        self.fc21 = nn.Linear(in_dim, 20)  # for mu
-        self.fc22 = nn.Linear(in_dim, 20)  # for std_dev
-        self.fc3 = nn.Linear(20, 50)
-        self.fc4 = nn.Linear(50, out_dim)
+        # self.fc1 = nn.Linear(in_dim, in_dim)
+        self.fc21 = nn.Linear(in_dim, out_dim)  # for mu
+        self.fc22 = nn.Linear(in_dim, out_dim)  # for std_dev
+        self.fc3 = nn.Linear(out_dim, out_dim)
+        self.fc4 = nn.Linear(out_dim, out_dim)
 
     def encode(self, x):
         # x = F.leaky_relu(self.fc1(x))
