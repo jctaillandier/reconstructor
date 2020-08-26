@@ -38,8 +38,9 @@ class PreProcessing:
         '''
 
         if args.input_dataset == 'disp_impact': 
-            import_path = "./data/disp_impact_remover_1.0.csv"
-            label_path = "./data/disp_impact_remover_og.csv"
+            sex_labels= pd.read_csv("./data/disp_impact_reduced_1-0.csv")
+            import_path = "./data/disp_impact_reduced_1-0_no_sex.csv"
+            label_path = "./data/disp_impact_reduced_0-0.csv"
 
         elif args.input_dataset == 'gansan':    
             """
@@ -78,19 +79,17 @@ class PreProcessing:
         self.labels_pp = d.Encoder(label_path)
         
         # Encode if gansan input
-        if args.input_dataset == 'gansan':
-            # self.data_pp.load_parameters('./data/')
-            # self.labels_pp.load_parameters('./data/')
-            self.data_pp.fit_transform()
-            self.data_pp.save_parameters(path_to_exp, prmFile=f"{args.input_dataset}_parameters_data.prm")
-            self.labels_pp.load_parameters(path_to_exp, prmFile=f"{args.input_dataset}_parameters_data.prm")
-            self.labels_pp.transform()
+        # if args.input_dataset == 'gansan':
+        self.data_pp.fit_transform()
+        self.data_pp.save_parameters(path_to_exp, prmFile=f"{args.input_dataset}_parameters_data.prm")
+        self.labels_pp.load_parameters(path_to_exp, prmFile=f"{args.input_dataset}_parameters_data.prm")
+        self.labels_pp.transform()
 
         
         # MAke sure post processing label and data are of same shape
         if self.data_pp.df.shape != self.labels_pp.df.shape:
             raise ValueError(f"The data csv ({self.data_pp.df.shape}) and labels ({self.labels_pp.df.shape}) post-encoding don't have the same shape.")
-
+        
         # self.data_pp.df.to_csv("/home/jc/Desktop/0.9875gansanitized_encoded.csv")
         self.dataloader = My_dataLoader(self.batchSize, self.data_pp, self.labels_pp, self.n_test,  sex_labels)
         
@@ -251,7 +250,7 @@ class Training:
         self.in_dim = experiment_x.dataloader.trdata.shape[1]
         # out dim = in dim + columns we removed if attr_to_gen
         self.out_dim = experiment_x.dataloader.trlabels.shape[1]
-
+        import pdb;pdb.set_trace()
         if model_type == 'autoencoder':
             self.model = Autoencoder(self.in_dim, self.out_dim).to(device)
         elif model_type== 'vae':

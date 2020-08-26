@@ -4,9 +4,9 @@ from joblib import Parallel, delayed
 import smtplib
 
 def parse_arguments(parser):
-    parser.add_argument('-in','--input_dataset', type=str, default='gansan', help='Dataset to use as input. Currently support `gansan` and `disp_impact`', required=False, choices=['gansan', 'disp_impact'])
+    parser.add_argument('-in','--input_dataset', type=str, default='disp_impact', help='Dataset to use as input. Currently support `gansan` and `disp_impact`', required=False, choices=['gansan', 'disp_impact'])
     parser.add_argument('-cpu','--cpu_parallel', type=int, default=1, help='How many cpu to run in parallel to accelerate trainings', required=False)
-    parser.add_argument('-a','--alpha', type=float, default=0.9875, help='Value of alpha used when  sanitizing the dataset we use as input.', required=False, choices=[0.2,0.8,0.9875])
+    parser.add_argument('-a','--alpha', type=float, default=1.0, help='Value of alpha used when  sanitizing the dataset we use as input.', required=False)
     parser.add_argument('-ep','--epochs', type=int, help='Number of epochs to train the model.', required=True)
     parser.add_argument('-n','--exp_name', type=str, default='', help='Name of experiemtn', required=False)
     parser.add_argument('-mt','--model_type', type=str, default='autoencoder', help='autoencoder or vae', required=False)
@@ -14,7 +14,7 @@ def parse_arguments(parser):
     return args
 
 def launch(bs: int, lr:float, ep:int, alpha:float, exp_name:str, model_type:str):
-    os.system(f"python3 reconstructor.py -ep={ep} -in=gansan -lr={lr} -bs={bs} -a={alpha} -mt={model_type} -n=\'grid-search_{exp_name}\'")
+    os.system(f"python3 reconstructor.py -ep={ep} -in=gansan -lr={lr} -bs={bs} -mt={model_type} -n=\'grid-search_{exp_name}\'")
 
 parser = argparse.ArgumentParser()
 args = parse_arguments(parser)

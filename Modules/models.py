@@ -6,8 +6,8 @@ class Autoencoder(nn.Module):
     def __init__(self, in_dim: int, out_dim: int):
         super(Autoencoder, self).__init__()
         self.encoder = nn.Sequential(
-            # nn.Linear(in_dim, in_dim),
-            # nn.LeakyReLU(),
+            nn.Linear(in_dim, in_dim),
+            nn.LeakyReLU(),
             nn.Linear(in_dim,out_dim),
             nn.LeakyReLU(), 
             nn.Linear(out_dim,out_dim),
