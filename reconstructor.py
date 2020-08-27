@@ -79,15 +79,15 @@ class PreProcessing:
         self.labels_pp = d.Encoder(label_path)
         
         # Encode if gansan input
-        # if args.input_dataset == 'gansan':
-        self.data_pp.fit_transform()
-        self.data_pp.save_parameters(path_to_exp, prmFile=f"{args.input_dataset}_parameters_data.prm")
-        self.labels_pp.load_parameters(path_to_exp, prmFile=f"{args.input_dataset}_parameters_data.prm")
-        self.labels_pp.transform()
+        if args.input_dataset == 'gansan':
+            self.data_pp.fit_transform()
+            self.data_pp.save_parameters(path_to_exp, prmFile=f"{args.input_dataset}_parameters_data.prm")
+            self.labels_pp.load_parameters(path_to_exp, prmFile=f"{args.input_dataset}_parameters_data.prm")
+            self.labels_pp.transform()
 
         
         # MAke sure post processing label and data are of same shape
-        if self.data_pp.df.shape != self.labels_pp.df.shape:
+        if args.input_dataset == 'gansan' and self.data_pp.df.shape != self.labels_pp.df.shape:
             raise ValueError(f"The data csv ({self.data_pp.df.shape}) and labels ({self.labels_pp.df.shape}) post-encoding don't have the same shape.")
         
         # self.data_pp.df.to_csv("/home/jc/Desktop/0.9875gansanitized_encoded.csv")
@@ -121,6 +121,7 @@ class My_dataLoader:
             for col in self.df_data.columns:
                 if args.attr_to_gen.lower() in col.lower():
                     self.df_data = self.df_data.drop([col], axis=1)
+                    self.df_labels = self.df_labels.drop([col], axis=1)
                     self.col_rm = self.col_rm + 1
         
                     # self.out_dim_to_add = self.out_dim_to_add + 1
@@ -223,11 +224,12 @@ def test(model: torch.nn.Module, experiment: PreProcessing, test_loss_fn:torch.o
     # To save sanitized test set to compare with generated data line by line
     data = pd.DataFrame(inputs.cpu().numpy(), columns=experiment.data_pp.encoded_features_order)
     data.to_csv(f"{model_saved}sanitized_testset_raw.csv", index=False)
-    some_enc = d.Encoder(f"{model_saved}sanitized_testset_raw.csv")
-    some_enc.load_parameters(path_to_exp,f"{args.input_dataset}_parameters_data.prm")
-    some_enc.inverse_transform()
-    final_df = pd.concat([some_enc.df, experiment.dataloader.sex_labelss], axis=1)
-    final_df.to_csv(f"{model_saved}sanitized_testset_clean.csv", index=False)
+    if args.input_dataset == 'gansan':
+        some_enc = d.Encoder(f"{model_saved}sanitized_testset_raw.csv")
+        some_enc.load_parameters(path_to_exp,f"{args.input_dataset}_parameters_data.prm")
+        some_enc.inverse_transform()
+        final_df = pd.concat([some_enc.df, experiment.dataloader.sex_labelss], axis=1)
+        final_df.to_csv(f"{model_saved}sanitized_testset_clean.csv", index=False)
     
     return loss.detach(), gen_data
 
@@ -250,7 +252,6 @@ class Training:
         self.in_dim = experiment_x.dataloader.trdata.shape[1]
         # out dim = in dim + columns we removed if attr_to_gen
         self.out_dim = experiment_x.dataloader.trlabels.shape[1]
-        import pdb;pdb.set_trace()
         if model_type == 'autoencoder':
             self.model = Autoencoder(self.in_dim, self.out_dim).to(device)
         elif model_type== 'vae':
@@ -321,11 +322,12 @@ class Training:
         last_ep_data = pd.DataFrame(model_gen_data, columns=self.experiment_x.data_pp.encoded_features_order)
         last_ep_data.to_csv(f"{model_saved}last_ep_data_raw.csv", index=False)
         some_enc = d.Encoder(f"{model_saved}last_ep_data_raw.csv")
-        some_enc.load_parameters(path_to_exp, prmFile=f"{args.input_dataset}_parameters_data.prm")
-        some_enc.inverse_transform()
-        final_df = pd.concat([some_enc.df, self.experiment_x.dataloader.sex_labelss], axis=1)
-        # final_df_clean = pd.concat([self.gen_encoder.df, self.experiment_x.dataloader.sex_labelss], axis=1)
-        final_df.to_csv(f"{model_saved}last_ep_data_clean.csv", index=False)
+        if args.input_dataset =='gansan':
+            some_enc.load_parameters(path_to_exp, prmFile=f"{args.input_dataset}_parameters_data.prm")
+            some_enc.inverse_transform()
+            final_df = pd.concat([some_enc.df, self.experiment_x.dataloader.sex_labelss], axis=1)
+            # final_df_clean = pd.concat([self.gen_encoder.df, self.experiment_x.dataloader.sex_labelss], axis=1)
+            final_df.to_csv(f"{model_saved}last_ep_data_clean.csv", index=False)
 
 
         end = time.time()
@@ -423,13 +425,11 @@ class Training:
         self.san_data = pd.DataFrame(test_san, columns=headers)
 
         test_og = self.experiment_x.dataloader.df_label.values[self.experiment_x.dataloader.train_size:,:]
-        self.og_data = pd.DataFrame(test_og, columns=headers)
-        
+        self.og_data = pd.DataFrame(test_og, columns=self.experiment_x.labels_pp.df.columns)
 
         a = self.og_data.describe()
         b = self.san_data.describe()
-        c = self.test_gen.describe()
-        
+        c = self.test_gen.describe()        
         
         a.to_csv(path_base+"original.csv")
         b.to_csv(path_base+"sanitized.csv")
@@ -452,11 +452,15 @@ def main():
     print(f"Training completed. Running external Classifiers...")
 
     # classifiers predicting sex variable
-    ext_classif = classifiers.BaseClassifiers("best_loss_clean_generated",path_to_exp, args.kfold)
-    ext_classif.runit()
-    # classifiers predicting sex variable
-    ext_classif = classifiers.BaseClassifiers("last_ep_data_clean",path_to_exp, args.kfold)
-    ext_classif.runit()
+    if args.input_dataset == 'gansan':
+        ext_classif = classifiers.BaseClassifiers("best_loss_clean_generated",path_to_exp, args.kfold)
+    else:
+        ext_classif = classifiers.BaseClassifiers("best_loss_raw_generated",path_to_exp, args.kfold)
+
+    # ext_classif.runit()
+    # # classifiers predicting sex variable
+    # ext_classif = classifiers.BaseClassifiers("last_ep_data_clean",path_to_exp, args.kfold)
+    # ext_classif.runit()
 
 
     print(f"\n \n Experiment can be found under {path_to_exp} \n \n ")

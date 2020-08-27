@@ -14,7 +14,7 @@ def parse_arguments(parser):
     return args
 
 def launch(bs: int, lr:float, ep:int, alpha:float, exp_name:str, model_type:str):
-    os.system(f"python3 reconstructor.py -ep={ep} -in=gansan -lr={lr} -bs={bs} -mt={model_type} -n=\'grid-search_{exp_name}\'")
+    os.system(f"python3 reconstructor.py -ep={ep} -in=disp_impact -lr={lr} -bs={bs} -mt={model_type} -n=\'grid-search_{exp_name}\'")
 
 parser = argparse.ArgumentParser()
 args = parse_arguments(parser)
