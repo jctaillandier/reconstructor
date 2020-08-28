@@ -304,7 +304,9 @@ class Training:
             self.test_accuracy.append(loss)#/len(self.experiment_x.dataloader.test_loader.dataset))
         
         self.test_gen = pd.DataFrame(self.best_generated_data.values, columns=self.experiment_x.data_pp.encoded_features_order)
+        self.test_gen = pd.concat([self.best_generated_data, self.experiment_x.dataloader.sex_labelss], axis=1)
         self.test_gen.to_csv(f"{model_saved}best_loss_raw_generated.csv", index=False)
+
         if args.input_dataset =='gansan':
                 self.gen_encoder = d.Encoder(f"{model_saved}best_loss_raw_generated.csv")
                 self.gen_encoder.load_parameters(path_to_exp, prmFile=f"{args.input_dataset}_parameters_data.prm")
@@ -319,7 +321,8 @@ class Training:
         torch.save(self.model.state_dict(), fm)
 
         # To save last epoch generated data
-        last_ep_data = pd.DataFrame(model_gen_data, columns=self.experiment_x.data_pp.encoded_features_order)
+        last_ep_data = pd.DataFrame(model_gen_data.values, columns=self.experiment_x.data_pp.encoded_features_order)
+        last_ep_data = pd.concat([model_gen_data, self.experiment_x.dataloader.sex_labelss], axis=1)
         last_ep_data.to_csv(f"{model_saved}last_ep_data_raw.csv", index=False)
         some_enc = d.Encoder(f"{model_saved}last_ep_data_raw.csv")
         if args.input_dataset =='gansan':
@@ -457,10 +460,10 @@ def main():
     else:
         ext_classif = classifiers.BaseClassifiers("best_loss_raw_generated",path_to_exp, args.kfold)
 
-    # ext_classif.runit()
-    # # classifiers predicting sex variable
-    # ext_classif = classifiers.BaseClassifiers("last_ep_data_clean",path_to_exp, args.kfold)
-    # ext_classif.runit()
+    ext_classif.runit()
+    # classifiers predicting sex variable
+    ext_classif = classifiers.BaseClassifiers("last_ep_data_raw",path_to_exp, args.kfold)
+    ext_classif.runit()
 
 
     print(f"\n \n Experiment can be found under {path_to_exp} \n \n ")
